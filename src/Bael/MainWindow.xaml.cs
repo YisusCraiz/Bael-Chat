@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 
 namespace Bael;
 
@@ -18,6 +20,13 @@ public partial class MainWindow : Window
     private void OpenChat(object sender, RoutedEventArgs e)
     {
         Chat.Visibility = Visibility.Visible;
+        EyesScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation
+        {
+            To = 0.2,
+            Duration = new Duration(TimeSpan.FromMilliseconds(100)),
+            AutoReverse = true,
+            FillBehavior = FillBehavior.Stop
+        });
 
         long now = Environment.TickCount64;
         if (clickCount == 0 || now - firstClick > 1000)
@@ -31,6 +40,13 @@ public partial class MainWindow : Window
             clickCount = 0;
             OpenModes(sender, e);
         }
+    }
+
+    private void HideChat(object sender, RoutedEventArgs e)
+    {
+        Chat.Visibility = Visibility.Collapsed;
+        clickCount = 0;
+        MascotButton.Focus();
     }
 
     private void OpenModes(object sender, RoutedEventArgs e)

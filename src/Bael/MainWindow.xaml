@@ -4,10 +4,31 @@
         Title="BAEL" Width="440" MinWidth="360" SizeToContent="Height"
         Topmost="True" WindowStartupLocation="CenterScreen">
     <StackPanel Margin="20">
-        <Button Content="BAEL" Padding="12,8" Click="OpenChat"
-                AutomationProperties.HelpText="Un clic abre el chat. Tres clics rápidos abren los modos." />
+        <Button x:Name="MascotButton" HorizontalAlignment="Center" Padding="18,10"
+                Click="OpenChat" AutomationProperties.Name="BAEL"
+                AutomationProperties.HelpText="Un clic abre el chat. Tres clics rápidos abren los modos.">
+            <StackPanel>
+                <Canvas Width="56" Height="48" HorizontalAlignment="Center">
+                    <Ellipse Canvas.Left="8" Canvas.Top="6" Width="12" Height="14" Fill="#5951AA" />
+                    <Ellipse Canvas.Left="36" Canvas.Top="6" Width="12" Height="14" Fill="#5951AA" />
+                    <Ellipse Canvas.Left="5" Canvas.Top="12" Width="46" Height="34" Fill="#766BD1" />
+                    <Ellipse Canvas.Left="10" Canvas.Top="15" Width="36" Height="26" Fill="#252148" />
+                    <StackPanel Canvas.Left="17" Canvas.Top="23" Orientation="Horizontal">
+                        <StackPanel.RenderTransform>
+                            <ScaleTransform x:Name="EyesScale" ScaleY="1" CenterY="3" />
+                        </StackPanel.RenderTransform>
+                        <Ellipse Width="6" Height="6" Fill="#D1F8F2" />
+                        <Ellipse Width="6" Height="6" Margin="10,0,0,0" Fill="#D1F8F2" />
+                    </StackPanel>
+                    <Path Data="M 24,33 Q 28,37 32,33" Stroke="#D1F8F2" StrokeThickness="1.5" />
+                </Canvas>
+                <TextBlock Text="BAEL" HorizontalAlignment="Center" FontWeight="SemiBold" />
+            </StackPanel>
+        </Button>
         <StackPanel x:Name="Chat" Margin="0,12,0,0" Visibility="Collapsed">
             <DockPanel Margin="0,0,0,8">
+                <Button DockPanel.Dock="Right" Content="Ocultar chat"
+                        Margin="8,0,0,0" Padding="8,4" Click="HideChat" />
                 <Button x:Name="Modes" DockPanel.Dock="Right" Content="Cambiar modo"
                         Padding="8,4" Click="OpenModes" />
                 <TextBlock x:Name="ModeLabel" Text="Modo estudiante"

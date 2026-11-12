@@ -2,15 +2,22 @@
 
 Aplicación de escritorio para Windows desarrollada en C# y WPF.
 
-## Ejecutar la base
+## Abrir en Visual Studio
 
-1. Clona este repositorio con GitHub Desktop.
-2. En Windows, instala Visual Studio con la carga de trabajo **Desarrollo de escritorio de .NET** y el SDK de .NET 8.
-3. Abre `Bael.sln` y pulsa **F5**.
+1. En Windows, abre **Visual Studio Installer** y elige **Modificar** en Visual Studio 2022 (17.8 o posterior).
+2. Marca **Desarrollo de escritorio de .NET**. Comprueba que tienes el **SDK de .NET 8** con `dotnet --list-sdks`. Si no aparece una versión 8.0, instala el [SDK de .NET 8](https://dotnet.microsoft.com/es-es/download/dotnet/8.0).
+3. Clona el repositorio con GitHub Desktop y selecciona `feature/base-wpf` mientras el PR inicial esté abierto. Cuando se integre, podrás usar `main`.
+4. Abre `Bael.sln` en Visual Studio y pulsa **F5**. Esta versión usa WPF de .NET 8 y no requiere paquetes NuGet externos.
+
+## Descargar y ejecutar desde GitHub
+
+1. Inicia sesión en GitHub y abre [Compilar BAEL en Windows](https://github.com/YisusCraiz/Bael-Chat/actions/workflows/windows-build.yml).
+2. Abre la compilación exitosa más reciente y descarga **BAEL-Windows-x64** desde **Artifacts**.
+3. Extrae todo el ZIP y abre `Bael.exe` en Windows x64. El paquete incluye el runtime de .NET.
 
 ## Probar el prototipo
 
-- Pulsa **BAEL** una vez para abrir el chat.
+- Pulsa la mascota **BAEL** una vez para abrir el chat. La mascota parpadea al pulsarla. Usa **Ocultar chat** para plegarlo y conserva la conversación abierta al volver.
 - Pulsa **BAEL** tres veces seguidas en un segundo para abrir el selector. Elige Tarot o Comedia, escribe un mensaje y pulsa **Enviar** o **Enter**.
 - Elige **Estudiante** en el selector para volver al modo inicial. Las respuestas de Tarot y Comedia son de muestra.
 
