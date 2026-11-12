@@ -17,6 +17,7 @@ Aplicación de escritorio para Windows desarrollada en C# y WPF.
 
 ## Probar el prototipo
 
+- Con el chat oculto y el cursor fuera de la mascota, espera unos segundos para verla caminar dentro de la ventana. Cuando abres el chat se detiene. El parpadeo de reposo continúa con el chat abierto.
 - Pulsa la mascota **BAEL** una vez para abrir el chat. La mascota parpadea al pulsarla. Usa **Ocultar chat** para plegarlo y conserva la conversación abierta al volver.
 - Pulsa **BAEL** tres veces seguidas en un segundo para abrir el selector. Elige Tarot o Comedia, escribe un mensaje y pulsa **Enviar** o **Enter**.
 - Elige **Estudiante** en el selector para volver al modo inicial. Las respuestas de Tarot y Comedia son de muestra.

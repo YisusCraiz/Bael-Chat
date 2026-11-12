@@ -3,11 +3,14 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 
 namespace Bael;
 
 public partial class MainWindow : Window
 {
+    private readonly DispatcherTimer mascotTimer = new() { Interval = TimeSpan.FromSeconds(4) };
+    private double nextWalkPosition = 64;
     private ChatMode mode = ChatMode.Student;
     private long firstClick;
     private int clickCount;
@@ -15,18 +18,17 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        MascotButton.MouseEnter += (_, _) => StopWalking();
+        mascotTimer.Tick += AnimateMascot;
+        mascotTimer.Start();
+        Closed += (_, _) => mascotTimer.Stop();
     }
 
     private void OpenChat(object sender, RoutedEventArgs e)
     {
         Chat.Visibility = Visibility.Visible;
-        EyesScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation
-        {
-            To = 0.2,
-            Duration = new Duration(TimeSpan.FromMilliseconds(100)),
-            AutoReverse = true,
-            FillBehavior = FillBehavior.Stop
-        });
+        StopWalking();
+        Blink();
 
         long now = Environment.TickCount64;
         if (clickCount == 0 || now - firstClick > 1000)
@@ -40,6 +42,60 @@ public partial class MainWindow : Window
             clickCount = 0;
             OpenModes(sender, e);
         }
+    }
+
+    private void AnimateMascot(object? sender, EventArgs e)
+    {
+        Blink();
+        if (Chat.Visibility == Visibility.Visible || MascotButton.IsMouseOver)
+            return;
+
+        var walkDuration = new Duration(TimeSpan.FromMilliseconds(960));
+        double destination = nextWalkPosition;
+        nextWalkPosition = -nextWalkPosition;
+
+        double start = MascotPosition.X;
+        MascotPosition.X = destination;
+        MascotPosition.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation
+        {
+            From = start,
+            To = destination,
+            Duration = walkDuration,
+            FillBehavior = FillBehavior.Stop
+        });
+
+        LeftFoot.BeginAnimation(TranslateTransform.YProperty, CreateSteps(-4));
+        RightFoot.BeginAnimation(TranslateTransform.YProperty, CreateSteps(4));
+    }
+
+    private static DoubleAnimation CreateSteps(double stride) => new()
+    {
+        From = 0,
+        To = stride,
+        Duration = new Duration(TimeSpan.FromMilliseconds(120)),
+        AutoReverse = true,
+        RepeatBehavior = new RepeatBehavior(4),
+        FillBehavior = FillBehavior.Stop
+    };
+
+    private void StopWalking()
+    {
+        double position = MascotPosition.X;
+        MascotPosition.BeginAnimation(TranslateTransform.XProperty, null);
+        MascotPosition.X = position;
+        LeftFoot.BeginAnimation(TranslateTransform.YProperty, null);
+        RightFoot.BeginAnimation(TranslateTransform.YProperty, null);
+    }
+
+    private void Blink()
+    {
+        EyesScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation
+        {
+            To = 0.2,
+            Duration = new Duration(TimeSpan.FromMilliseconds(100)),
+            AutoReverse = true,
+            FillBehavior = FillBehavior.Stop
+        });
     }
 
     private void HideChat(object sender, RoutedEventArgs e)
