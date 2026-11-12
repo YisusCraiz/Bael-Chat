@@ -1,0 +1,29 @@
+name: Compilar BAEL en Windows
+
+on:
+  push:
+    branches: [main, feature/base-wpf]
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Compilar y preparar la aplicación
+        run: dotnet publish src/Bael/Bael.csproj --configuration Release --runtime win-x64 --self-contained true --output publish
+      - name: Guardar la aplicación para probar en Windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAEL-Windows-x64
+          path: publish/
+          if-no-files-found: error
