@@ -12,6 +12,10 @@ namespace Bael;
 public partial class MainWindow : Window
 {
     private readonly DispatcherTimer mascotTimer = new() { Interval = TimeSpan.FromSeconds(4) };
+    private readonly MascotSprites sprites = new();
+    private readonly DispatcherTimer spriteTimer = new();
+    private ImageSource[] activeFrames = [];
+    private int frameIndex;
     private readonly MediaPlayer voicePlayer = new();
     private CancellationTokenSource? voiceRequest;
     private string? voiceFile;
@@ -25,7 +29,14 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        MascotButton.MouseEnter += (_, _) => StopWalking();
+        PlaySprites(sprites.Idle, 180);
+        MascotButton.MouseEnter += (_, _) =>
+        {
+            if (activeFrames == sprites.Walk)
+                PlaySprites(sprites.Idle, 180);
+            StopWalking();
+        };
+        spriteTimer.Tick += AdvanceSprite;
         mascotTimer.Tick += AnimateMascot;
         mascotTimer.Start();
         voicePlayer.MediaEnded += (_, _) => EndPlayback("");
@@ -34,6 +45,7 @@ public partial class MainWindow : Window
         {
             isClosed = true;
             mascotTimer.Stop();
+            spriteTimer.Stop();
             voiceRequest?.Cancel();
             ReleaseAudio();
         };
@@ -43,6 +55,7 @@ public partial class MainWindow : Window
     {
         Chat.Visibility = Visibility.Visible;
         StopWalking();
+        PlaySprites(sprites.React, 100);
         Blink();
 
         long now = Environment.TickCount64;
@@ -65,6 +78,7 @@ public partial class MainWindow : Window
         if (Chat.Visibility == Visibility.Visible || MascotButton.IsMouseOver)
             return;
 
+        PlaySprites(sprites.Walk, Math.Max(1, 960.0 / Math.Max(1, sprites.Walk.Length)));
         var walkDuration = new Duration(TimeSpan.FromMilliseconds(960));
         double destination = nextWalkPosition;
         nextWalkPosition = -nextWalkPosition;
@@ -81,6 +95,47 @@ public partial class MainWindow : Window
 
         LeftFoot.BeginAnimation(TranslateTransform.YProperty, CreateSteps(-4));
         RightFoot.BeginAnimation(TranslateTransform.YProperty, CreateSteps(4));
+    }
+
+    private void PlaySprites(ImageSource[] frames, double frameMilliseconds)
+    {
+        spriteTimer.Stop();
+        activeFrames = frames;
+        frameIndex = 0;
+
+        ImageSource? firstFrame = frames.FirstOrDefault();
+        if (firstFrame is null && frames != sprites.Idle)
+            firstFrame = sprites.Idle.FirstOrDefault();
+
+        MascotFrame.Source = firstFrame;
+        MascotFrame.Visibility = firstFrame is null ? Visibility.Collapsed : Visibility.Visible;
+        DefaultMascot.Visibility = firstFrame is null ? Visibility.Visible : Visibility.Collapsed;
+
+        if (frames.Length > 1 || (frames.Length == 1 && frames != sprites.Idle))
+        {
+            spriteTimer.Interval = TimeSpan.FromMilliseconds(frameMilliseconds);
+            spriteTimer.Start();
+        }
+        else if (frames.Length == 0 && frames != sprites.Idle)
+        {
+            PlaySprites(sprites.Idle, 180);
+        }
+    }
+
+    private void AdvanceSprite(object? sender, EventArgs e)
+    {
+        if (++frameIndex == activeFrames.Length)
+        {
+            if (activeFrames != sprites.Idle)
+            {
+                PlaySprites(sprites.Idle, 180);
+                return;
+            }
+
+            frameIndex = 0;
+        }
+
+        MascotFrame.Source = activeFrames[frameIndex];
     }
 
     private static DoubleAnimation CreateSteps(double stride) => new()

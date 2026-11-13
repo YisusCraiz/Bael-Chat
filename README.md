@@ -41,3 +41,9 @@ La consulta de PDF y las citas por página quedan para una fase posterior.
 2. Crea `BAEL_ELEVENLABS_API_KEY` con tu clave de ElevenLabs y `BAEL_ELEVENLABS_VOICE_ID` con el ID de una voz disponible en tu cuenta. Guarda ambos valores solo en la PC de prueba.
 3. Cierra y vuelve a abrir BAEL. Si usas F5, reinicia Visual Studio para cargar las variables.
 4. Envía un mensaje en Tarot o Comedia y pulsa **Leer en voz alta**. BAEL envía a ElevenLabs el texto de su última respuesta solo cuando pulsas ese botón. Puedes cancelar la solicitud o detener la reproducción. Si falta configuración o falla el servicio, el chat sigue funcionando.
+
+## Usar sprites propios
+
+Coloca los PNG transparentes en `Sprites/idle/`, `Sprites/walk/` y `Sprites/react/`, junto a `Bael.exe`. Si trabajas desde Visual Studio, coloca esas carpetas dentro de `src/Bael/` y recompila. Usa el mismo tamaño y punto de apoyo en todos los fotogramas. Numéralos como `01.png`, `02.png` y `03.png` para que se reproduzcan en ese orden.
+
+Reinicia BAEL para cargar los archivos. Reposo se repite, caminata se reproduce durante el desplazamiento y reacción se reproduce una vez al pulsar la mascota. Puedes empezar con una sola carpeta o con un solo PNG por estado. Sin sprites de reposo, BAEL muestra la mascota provisional cuando no hay un fotograma para el estado actual.

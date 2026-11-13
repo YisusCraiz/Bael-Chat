@@ -11,30 +11,34 @@
                 <TranslateTransform x:Name="MascotPosition" />
             </Button.RenderTransform>
             <StackPanel>
-                <Canvas Width="56" Height="52" HorizontalAlignment="Center">
-                    <Ellipse Canvas.Left="12" Canvas.Top="40" Width="13" Height="8" Fill="#5951AA">
-                        <Ellipse.RenderTransform>
-                            <TranslateTransform x:Name="LeftFoot" />
-                        </Ellipse.RenderTransform>
-                    </Ellipse>
-                    <Ellipse Canvas.Left="31" Canvas.Top="40" Width="13" Height="8" Fill="#5951AA">
-                        <Ellipse.RenderTransform>
-                            <TranslateTransform x:Name="RightFoot" />
-                        </Ellipse.RenderTransform>
-                    </Ellipse>
-                    <Ellipse Canvas.Left="8" Canvas.Top="6" Width="12" Height="14" Fill="#5951AA" />
-                    <Ellipse Canvas.Left="36" Canvas.Top="6" Width="12" Height="14" Fill="#5951AA" />
-                    <Ellipse Canvas.Left="5" Canvas.Top="12" Width="46" Height="34" Fill="#766BD1" />
-                    <Ellipse Canvas.Left="10" Canvas.Top="15" Width="36" Height="26" Fill="#252148" />
-                    <StackPanel Canvas.Left="17" Canvas.Top="23" Orientation="Horizontal">
-                        <StackPanel.RenderTransform>
-                            <ScaleTransform x:Name="EyesScale" ScaleY="1" CenterY="3" />
-                        </StackPanel.RenderTransform>
-                        <Ellipse Width="6" Height="6" Fill="#D1F8F2" />
-                        <Ellipse Width="6" Height="6" Margin="10,0,0,0" Fill="#D1F8F2" />
-                    </StackPanel>
-                    <Path Data="M 24,33 Q 28,37 32,33" Stroke="#D1F8F2" StrokeThickness="1.5" />
-                </Canvas>
+                <Grid Width="56" Height="52" HorizontalAlignment="Center">
+                    <Canvas x:Name="DefaultMascot">
+                        <Ellipse Canvas.Left="12" Canvas.Top="40" Width="13" Height="8" Fill="#5951AA">
+                            <Ellipse.RenderTransform>
+                                <TranslateTransform x:Name="LeftFoot" />
+                            </Ellipse.RenderTransform>
+                        </Ellipse>
+                        <Ellipse Canvas.Left="31" Canvas.Top="40" Width="13" Height="8" Fill="#5951AA">
+                            <Ellipse.RenderTransform>
+                                <TranslateTransform x:Name="RightFoot" />
+                            </Ellipse.RenderTransform>
+                        </Ellipse>
+                        <Ellipse Canvas.Left="8" Canvas.Top="6" Width="12" Height="14" Fill="#5951AA" />
+                        <Ellipse Canvas.Left="36" Canvas.Top="6" Width="12" Height="14" Fill="#5951AA" />
+                        <Ellipse Canvas.Left="5" Canvas.Top="12" Width="46" Height="34" Fill="#766BD1" />
+                        <Ellipse Canvas.Left="10" Canvas.Top="15" Width="36" Height="26" Fill="#252148" />
+                        <StackPanel Canvas.Left="17" Canvas.Top="23" Orientation="Horizontal">
+                            <StackPanel.RenderTransform>
+                                <ScaleTransform x:Name="EyesScale" ScaleY="1" CenterY="3" />
+                            </StackPanel.RenderTransform>
+                            <Ellipse Width="6" Height="6" Fill="#D1F8F2" />
+                            <Ellipse Width="6" Height="6" Margin="10,0,0,0" Fill="#D1F8F2" />
+                        </StackPanel>
+                        <Path Data="M 24,33 Q 28,37 32,33" Stroke="#D1F8F2" StrokeThickness="1.5" />
+                    </Canvas>
+                    <Image x:Name="MascotFrame" Stretch="Uniform" Visibility="Collapsed"
+                           RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                </Grid>
                 <TextBlock Text="BAEL" HorizontalAlignment="Center" FontWeight="SemiBold" />
             </StackPanel>
         </Button>
