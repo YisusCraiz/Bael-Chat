@@ -1,5 +1,6 @@
 using System.IO;
 using System.Net.Http;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -16,6 +17,9 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer spriteTimer = new();
     private ImageSource[] activeFrames = [];
     private int frameIndex;
+    private BaelSettings settings;
+    private bool settingsUnreadable;
+    private readonly CancellationTokenSource chatLifetime = new();
     private readonly MediaPlayer voicePlayer = new();
     private CancellationTokenSource? voiceRequest;
     private string? voiceFile;
@@ -29,6 +33,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        settings = BaelSettings.Load(out settingsUnreadable);
+        ApplySettings();
         PlaySprites(sprites.Idle, 180);
         MascotButton.MouseEnter += (_, _) =>
         {
@@ -44,6 +50,8 @@ public partial class MainWindow : Window
         Closed += (_, _) =>
         {
             isClosed = true;
+            chatLifetime.Cancel();
+            chatLifetime.Dispose();
             mascotTimer.Stop();
             spriteTimer.Stop();
             voiceRequest?.Cancel();
@@ -55,20 +63,26 @@ public partial class MainWindow : Window
     {
         var click = new RoutedEventArgs(Button.ClickEvent);
         OpenChat(MascotButton, click);
-        if (Chat.Visibility != Visibility.Visible)
+        if (Chat.Visibility != Visibility.Visible || SettingsGear.Visibility != Visibility.Visible)
             throw new InvalidOperationException("El chat no abrió.");
 
         foreach (ChatMode profile in new[] { ChatMode.Tarot, ChatMode.Comedy })
         {
             mode = profile;
-            Message.Text = "Mensaje de prueba";
+            const string message = "Mensaje de prueba";
             int previousCount = Conversation.Items.Count;
-            SendMessage(ReadAloudButton, click);
+            AddUserMessage(message);
+            ShowReply(profile, Responses.For(profile, message));
             if (Conversation.Items.Count != previousCount + 2 || string.IsNullOrWhiteSpace(latestReply))
                 throw new InvalidOperationException($"El perfil {profile} no devolvió una respuesta.");
         }
 
+        var settingsWindow = new SettingsWindow(settings, settingsUnreadable);
+        settingsWindow.Close();
+
         HideChat(MascotButton, click);
+        if (SettingsGear.Visibility != Visibility.Collapsed)
+            throw new InvalidOperationException("El engrane quedó visible al ocultar el chat.");
         OpenChat(MascotButton, click);
         if (Chat.Visibility != Visibility.Visible || Conversation.Items.Count != 4)
             throw new InvalidOperationException("El chat perdió la conversación al volver a abrirlo.");
@@ -78,6 +92,17 @@ public partial class MainWindow : Window
     {
         Chat.Visibility = Visibility.Visible;
         StopWalking();
+        if (SettingsGear.Visibility != Visibility.Visible)
+        {
+            SettingsGear.Visibility = Visibility.Visible;
+            GearOffset.X = MascotPosition.X;
+            GearOffset.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation
+            {
+                From = -12,
+                To = 0,
+                Duration = new Duration(TimeSpan.FromMilliseconds(180))
+            });
+        }
         PlaySprites(sprites.React, 100);
         Blink();
 
@@ -98,7 +123,7 @@ public partial class MainWindow : Window
     private void AnimateMascot(object? sender, EventArgs e)
     {
         Blink();
-        if (Chat.Visibility == Visibility.Visible || MascotButton.IsMouseOver)
+        if (!settings.Walk || Chat.Visibility == Visibility.Visible || MascotButton.IsMouseOver)
             return;
 
         PlaySprites(sprites.Walk, Math.Max(1, 960.0 / Math.Max(1, sprites.Walk.Length)));
@@ -194,6 +219,7 @@ public partial class MainWindow : Window
     private void HideChat(object sender, RoutedEventArgs e)
     {
         Chat.Visibility = Visibility.Collapsed;
+        SettingsGear.Visibility = Visibility.Collapsed;
         clickCount = 0;
         MascotButton.Focus();
     }
@@ -221,23 +247,91 @@ public partial class MainWindow : Window
         menu.IsOpen = true;
     }
 
-    private void SendMessage(object sender, RoutedEventArgs e)
+    private void ApplySettings()
+    {
+        Topmost = settings.Topmost;
+        voicePlayer.Volume = Math.Clamp(settings.Volume, 0, 1);
+    }
+
+    private void OpenSettings(object sender, RoutedEventArgs e)
+    {
+        clickCount = 0;
+        var dialog = new SettingsWindow(settings, settingsUnreadable) { Owner = this, Topmost = Topmost };
+        if (dialog.ShowDialog() == true)
+        {
+            settings = dialog.Settings;
+            settingsUnreadable = false;
+            ApplySettings();
+        }
+    }
+
+    private async void SendMessage(object sender, RoutedEventArgs e)
     {
         string message = Message.Text.Trim();
-        if (message.Length == 0)
+        if (message.Length == 0 || !SendButton.IsEnabled)
+            return;
+
+        ChatMode profile = mode;
+        BaelSettings current = settings;
+        AddUserMessage(message);
+        Message.Clear();
+        Message.Focus();
+        ChatStatus.Text = "";
+
+        string reply = Responses.For(profile, message);
+        if (!current.OnlineChat || profile == ChatMode.Student)
         {
-            Message.Focus();
+            ShowReply(profile, reply);
             return;
         }
 
-        Conversation.Items.Add($"Tú: {message}");
-        latestReply = Responses.For(mode, message);
+        SendButton.IsEnabled = false;
+        ChatStatus.Text = "Consultando Gemini…";
+        try
+        {
+            string? onlineReply = await GeminiChat.ReplyAsync(current, profile, message, chatLifetime.Token);
+            if (isClosed)
+                return;
+
+            if (string.IsNullOrWhiteSpace(onlineReply))
+                ChatStatus.Text = "Gemini no devolvió texto. Se mostró una respuesta local.";
+            else
+            {
+                reply = onlineReply;
+                ChatStatus.Text = "";
+            }
+        }
+        catch (Exception error) when (error is HttpRequestException or OperationCanceledException
+                                      or FormatException or JsonException or InvalidOperationException)
+        {
+            if (isClosed)
+                return;
+
+            ChatStatus.Text = "Gemini no respondió. Revisa la clave, el modelo o la conexión. Se mostró una respuesta local.";
+        }
+        finally
+        {
+            if (!isClosed)
+                SendButton.IsEnabled = true;
+        }
+
+        ShowReply(profile, reply);
+    }
+
+    private void AddUserMessage(string message)
+    {
+        string line = $"Tú: {message}";
+        Conversation.Items.Add(line);
+        Conversation.ScrollIntoView(line);
+    }
+
+    private void ShowReply(ChatMode profile, string reply)
+    {
+        latestReply = reply;
         ReadAloudButton.IsEnabled = true;
-        string reply = $"BAEL ({GetModeName(mode)}): {latestReply}";
-        Conversation.Items.Add(reply);
-        Conversation.ScrollIntoView(reply);
-        Message.Clear();
-        Message.Focus();
+        string line = $"BAEL ({GetModeName(profile)}): {reply}";
+        Conversation.Items.Add(line);
+        Conversation.ScrollIntoView(line);
     }
 
     private async void ReadAloud(object sender, RoutedEventArgs e)
@@ -263,7 +357,7 @@ public partial class MainWindow : Window
         VoiceStatus.Text = "Generando audio…";
         try
         {
-            byte[] audio = await ElevenLabsVoice.GenerateAsync(text, request.Token);
+            byte[] audio = await ElevenLabsVoice.GenerateAsync(settings, text, request.Token);
             request.Token.ThrowIfCancellationRequested();
 
             voiceFile = Path.Combine(Path.GetTempPath(), $"bael-{Guid.NewGuid():N}.mp3");

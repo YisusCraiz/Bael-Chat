@@ -7,7 +7,7 @@ Aplicación de escritorio para Windows desarrollada en C# y WPF.
 1. En Windows, abre **Visual Studio Installer** y elige **Modificar** en Visual Studio 2022 (17.8 o posterior).
 2. Marca **Desarrollo de escritorio de .NET**. Comprueba que tienes el **SDK de .NET 8** con `dotnet --list-sdks`. Si no aparece una versión 8.0, instala el [SDK de .NET 8](https://dotnet.microsoft.com/es-es/download/dotnet/8.0).
 3. Clona el repositorio con GitHub Desktop y selecciona `feature/base-wpf` mientras el PR inicial esté abierto. Cuando se integre, podrás usar `main`.
-4. Abre `Bael.sln` en Visual Studio y pulsa **F5**. Esta versión usa WPF de .NET 8 y no requiere paquetes NuGet externos.
+4. Abre `Bael.sln` en Visual Studio y pulsa **F5**. Visual Studio restaura automáticamente el paquete de protección de datos de Windows al compilar.
 
 ## Descargar y ejecutar desde GitHub
 
@@ -39,12 +39,15 @@ Cada perfil recibe el mensaje como texto y devuelve la respuesta como texto. `Re
 
 La consulta de PDF y las citas por página quedan para una fase posterior.
 
-## Configurar la voz opcional
+## Ajustes de BAEL
 
-1. En Windows abre **Editar las variables de entorno de tu cuenta**.
-2. Crea `BAEL_ELEVENLABS_API_KEY` con tu clave de ElevenLabs y `BAEL_ELEVENLABS_VOICE_ID` con el ID de una voz disponible en tu cuenta. Guarda ambos valores solo en la PC de prueba.
-3. Cierra y vuelve a abrir BAEL. Si usas F5, reinicia Visual Studio para cargar las variables.
-4. Envía un mensaje en Tarot o Comedia y pulsa **Leer en voz alta**. BAEL envía a ElevenLabs el texto de su última respuesta solo cuando pulsas ese botón. Puedes cancelar la solicitud o detener la reproducción. Si falta configuración o falla el servicio, el chat sigue funcionando.
+Haz clic izquierdo sobre el sprite y abre el engrane que aparece debajo. Los cambios guardados se aplican en esa sesión y se conservan al reiniciar. BAEL guarda los ajustes cifrados con la cuenta de Windows en `%LOCALAPPDATA%\BAEL`.
+
+- **General:** mantener la ventana encima, activar o desactivar la caminata y ajustar el volumen.
+- **Chat · Gemini:** activa el chat en línea para Tarot y Comedia, pega tu clave y elige el modelo. Si dejas el modelo vacío se usa `gemini-2.5-flash`. El modo Estudiante conserva el aviso de documentos pendientes.
+- **Voz · ElevenLabs:** pega la clave y el ID de una voz. Envía un mensaje y pulsa **Leer en voz alta**.
+
+Los campos guardados tienen prioridad. Si dejas un campo vacío, BAEL usa la variable local correspondiente cuando existe: `BAEL_GEMINI_API_KEY`, `BAEL_ELEVENLABS_API_KEY` o `BAEL_ELEVENLABS_VOICE_ID`. El repositorio no contiene claves de API predeterminadas.
 
 ## Usar sprites propios
 

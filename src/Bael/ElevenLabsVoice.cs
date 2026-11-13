@@ -7,12 +7,12 @@ internal static class ElevenLabsVoice
 {
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromSeconds(30) };
 
-    public static async Task<byte[]> GenerateAsync(string text, CancellationToken cancellationToken)
+    public static async Task<byte[]> GenerateAsync(BaelSettings settings, string text, CancellationToken cancellationToken)
     {
-        string? key = Environment.GetEnvironmentVariable("BAEL_ELEVENLABS_API_KEY")?.Trim();
-        string? voiceId = Environment.GetEnvironmentVariable("BAEL_ELEVENLABS_VOICE_ID")?.Trim();
+        string key = settings.EffectiveVoiceKey;
+        string voiceId = settings.EffectiveVoiceId;
         if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(voiceId))
-            throw new InvalidOperationException("Configura la clave y el ID de voz de ElevenLabs según el README.");
+            throw new InvalidOperationException("Configura la clave y el ID de voz de ElevenLabs desde Ajustes.");
 
         using var request = new HttpRequestMessage(HttpMethod.Post,
             $"https://api.elevenlabs.io/v1/text-to-speech/{Uri.EscapeDataString(voiceId)}?output_format=mp3_44100_128");
