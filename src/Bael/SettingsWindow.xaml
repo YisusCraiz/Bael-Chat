@@ -34,13 +34,25 @@
                 </StackPanel>
             </TabItem>
             <TabItem Header="Voz · ElevenLabs">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="16">
                     <Label Target="{Binding ElementName=VoiceKey}" Content="Clave de ElevenLabs" Padding="0,0,0,4" />
                     <PasswordBox x:Name="VoiceKey" Padding="6" />
                     <Label Target="{Binding ElementName=VoiceId}" Content="ID de voz" Padding="0,12,0,4" />
                     <TextBox x:Name="VoiceId" Padding="6" />
                     <TextBlock Text="Los campos vacíos usan las variables locales si están configuradas. ElevenLabs recibe la respuesta solo al pulsar Leer en voz alta." TextWrapping="Wrap" Margin="0,10,0,0" />
+                    <Label Target="{Binding ElementName=OutputDevice}" Content="Altavoces o audífonos" Padding="0,12,0,4" />
+                    <ComboBox x:Name="OutputDevice" DisplayMemberPath="Name" SelectedValuePath="Id" />
+                    <Label Target="{Binding ElementName=InputDevice}" Content="Micrófono" Padding="0,12,0,4" />
+                    <ComboBox x:Name="InputDevice" DisplayMemberPath="Name" SelectedValuePath="Id"
+                              SelectionChanged="ChangeInput" />
+                    <Button x:Name="MicTest" Content="Probar micrófono" Click="ToggleMicTest"
+                            HorizontalAlignment="Left" Padding="8,4" Margin="0,8,0,4" />
+                    <ProgressBar x:Name="MicLevel" Maximum="1" Height="8" AutomationProperties.Name="Nivel del micrófono" />
+                    <TextBlock Text="La prueba mide el nivel en tu PC. Leer en voz alta usa texto y reproduce el audio en la salida elegida."
+                               TextWrapping="Wrap" Margin="0,8,0,0" />
                 </StackPanel>
+                </ScrollViewer>
             </TabItem>
         </TabControl>
     </DockPanel>

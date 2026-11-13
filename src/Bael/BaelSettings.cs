@@ -16,6 +16,8 @@ internal sealed record BaelSettings
     public string GeminiKey { get; init; } = "";
     public string GeminiModel { get; init; } = "gemini-2.5-flash";
     public string VoiceKey { get; init; } = "";
+    public string InputDeviceId { get; init; } = "";
+    public string OutputDeviceId { get; init; } = "";
     public string VoiceId { get; init; } = "";
 
     internal string EffectiveGeminiKey => Resolve(GeminiKey, "BAEL_GEMINI_API_KEY");

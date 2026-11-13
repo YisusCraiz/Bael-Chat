@@ -1,6 +1,9 @@
 using System.IO;
 using System.Net.Http;
 using System.Text.Json;
+using NAudio.CoreAudioApi;
+using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -20,9 +23,12 @@ public partial class MainWindow : Window
     private BaelSettings settings;
     private bool settingsUnreadable;
     private readonly CancellationTokenSource chatLifetime = new();
-    private readonly MediaPlayer voicePlayer = new();
+    private WasapiOut? voicePlayer;
+    private MMDevice? voiceOutput;
+    private Mp3FileReader? voiceReader;
+    private MemoryStream? voiceStream;
+    private VolumeSampleProvider? voiceVolume;
     private CancellationTokenSource? voiceRequest;
-    private string? voiceFile;
     private string? latestReply;
     private bool isClosed;
     private double nextWalkPosition = 64;
@@ -45,8 +51,6 @@ public partial class MainWindow : Window
         spriteTimer.Tick += AdvanceSprite;
         mascotTimer.Tick += AnimateMascot;
         mascotTimer.Start();
-        voicePlayer.MediaEnded += (_, _) => EndPlayback("");
-        voicePlayer.MediaFailed += (_, _) => EndPlayback("Windows no pudo reproducir el audio.");
         Closed += (_, _) =>
         {
             isClosed = true;
@@ -250,13 +254,15 @@ public partial class MainWindow : Window
     private void ApplySettings()
     {
         Topmost = settings.Topmost;
-        voicePlayer.Volume = Math.Clamp(settings.Volume, 0, 1);
+        if (voiceVolume is not null)
+            voiceVolume.Volume = (float)Math.Clamp(settings.Volume, 0, 1);
     }
 
     private void OpenSettings(object sender, RoutedEventArgs e)
     {
         clickCount = 0;
         var dialog = new SettingsWindow(settings, settingsUnreadable) { Owner = this, Topmost = Topmost };
+        dialog.LoadAudioDevices();
         if (dialog.ShowDialog() == true)
         {
             settings = dialog.Settings;
@@ -342,7 +348,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (voiceFile is not null)
+        if (voicePlayer is not null)
         {
             EndPlayback("");
             return;
@@ -360,12 +366,7 @@ public partial class MainWindow : Window
             byte[] audio = await ElevenLabsVoice.GenerateAsync(settings, text, request.Token);
             request.Token.ThrowIfCancellationRequested();
 
-            voiceFile = Path.Combine(Path.GetTempPath(), $"bael-{Guid.NewGuid():N}.mp3");
-            File.WriteAllBytes(voiceFile, audio);
-            ReadAloudButton.Content = "Detener audio";
-            VoiceStatus.Text = "Reproduciendo…";
-            voicePlayer.Open(new Uri(voiceFile));
-            voicePlayer.Play();
+            StartPlayback(audio);
         }
         catch (OperationCanceledException)
         {
@@ -382,9 +383,10 @@ public partial class MainWindow : Window
         {
             EndPlayback(error.Message);
         }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or FormatException)
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or FormatException
+                                      or System.Runtime.InteropServices.COMException or NAudio.MmException)
         {
-            EndPlayback("Revisa la configuración de voz y el acceso a la carpeta temporal.");
+            EndPlayback("No se pudo reproducir el audio. Revisa el dispositivo de salida en Ajustes.");
         }
         finally
         {
@@ -399,25 +401,38 @@ public partial class MainWindow : Window
         VoiceStatus.Text = status;
     }
 
+    private void StartPlayback(byte[] audio)
+    {
+        voiceOutput = AudioDevices.Open(settings.OutputDeviceId, DataFlow.Render);
+        voiceStream = new MemoryStream(audio, writable: false);
+        voiceReader = new Mp3FileReader(voiceStream);
+        voiceVolume = new VolumeSampleProvider(voiceReader.ToSampleProvider());
+        var player = new WasapiOut(voiceOutput, AudioClientShareMode.Shared, true, 100);
+        voicePlayer = player;
+        player.PlaybackStopped += (_, args) => Dispatcher.InvokeAsync(() =>
+        {
+            if (voicePlayer == player)
+                EndPlayback(args.Exception is null ? "" : "Se interrumpió la reproducción de voz.");
+        });
+        ApplySettings();
+        player.Init(voiceVolume.ToWaveProvider());
+        player.Play();
+        ReadAloudButton.Content = "Detener audio";
+        VoiceStatus.Text = "Reproduciendo…";
+    }
+
     private void ReleaseAudio()
     {
-        voicePlayer.Close();
-        if (voiceFile is not string file)
-            return;
-
-        voiceFile = null;
-        try
-        {
-            File.Delete(file);
-        }
-        catch (IOException)
-        {
-            // Windows may still hold the temporary audio file.
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // The temporary directory may be restricted.
-        }
+        var player = voicePlayer;
+        voicePlayer = null;
+        player?.Dispose();
+        voiceReader?.Dispose();
+        voiceReader = null;
+        voiceStream?.Dispose();
+        voiceStream = null;
+        voiceOutput?.Dispose();
+        voiceOutput = null;
+        voiceVolume = null;
     }
 
     private static string GetModeName(ChatMode option) => option switch
