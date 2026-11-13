@@ -22,6 +22,10 @@ Aplicación de escritorio para Windows desarrollada en C# y WPF.
 - Pulsa **BAEL** tres veces seguidas en un segundo para abrir el selector. Elige Tarot o Comedia, escribe un mensaje y pulsa **Enviar** o **Enter**.
 - Elige **Estudiante** en el selector para volver al modo inicial. Las respuestas de Tarot y Comedia son de muestra.
 
+## Comprobación en GitHub
+
+Antes de publicar el ZIP, GitHub Actions abre la ventana de BAEL en Windows, ejecuta los manejadores del chat con Tarot y Comedia y comprueba que la conversación siga presente al ocultar y reabrir el panel. Para la revisión visual, prueba también los tres clics, las animaciones y la voz en tu PC.
+
 ## Trabajar en equipo
 
 Crea una rama desde `main` actualizado y abre un PR por tarea. Incluye qué cambiaste, cómo se prueba y qué resultado obtuviste. Yisus revisa el PR con Yuki y valida la aplicación en Windows antes de integrarlo.

@@ -51,6 +51,29 @@ public partial class MainWindow : Window
         };
     }
 
+    internal void VerifyStartup()
+    {
+        var click = new RoutedEventArgs(Button.ClickEvent);
+        OpenChat(MascotButton, click);
+        if (Chat.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("El chat no abrió.");
+
+        foreach (ChatMode profile in new[] { ChatMode.Tarot, ChatMode.Comedy })
+        {
+            mode = profile;
+            Message.Text = "Mensaje de prueba";
+            int previousCount = Conversation.Items.Count;
+            SendMessage(ReadAloudButton, click);
+            if (Conversation.Items.Count != previousCount + 2 || string.IsNullOrWhiteSpace(latestReply))
+                throw new InvalidOperationException($"El perfil {profile} no devolvió una respuesta.");
+        }
+
+        HideChat(MascotButton, click);
+        OpenChat(MascotButton, click);
+        if (Chat.Visibility != Visibility.Visible || Conversation.Items.Count != 4)
+            throw new InvalidOperationException("El chat perdió la conversación al volver a abrirlo.");
+    }
+
     private void OpenChat(object sender, RoutedEventArgs e)
     {
         Chat.Visibility = Visibility.Visible;
