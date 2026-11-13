@@ -1,3 +1,5 @@
+using System.IO;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -10,6 +12,11 @@ namespace Bael;
 public partial class MainWindow : Window
 {
     private readonly DispatcherTimer mascotTimer = new() { Interval = TimeSpan.FromSeconds(4) };
+    private readonly MediaPlayer voicePlayer = new();
+    private CancellationTokenSource? voiceRequest;
+    private string? voiceFile;
+    private string? latestReply;
+    private bool isClosed;
     private double nextWalkPosition = 64;
     private ChatMode mode = ChatMode.Student;
     private long firstClick;
@@ -21,7 +28,15 @@ public partial class MainWindow : Window
         MascotButton.MouseEnter += (_, _) => StopWalking();
         mascotTimer.Tick += AnimateMascot;
         mascotTimer.Start();
-        Closed += (_, _) => mascotTimer.Stop();
+        voicePlayer.MediaEnded += (_, _) => EndPlayback("");
+        voicePlayer.MediaFailed += (_, _) => EndPlayback("Windows no pudo reproducir el audio.");
+        Closed += (_, _) =>
+        {
+            isClosed = true;
+            mascotTimer.Stop();
+            voiceRequest?.Cancel();
+            ReleaseAudio();
+        };
     }
 
     private void OpenChat(object sender, RoutedEventArgs e)
@@ -138,11 +153,99 @@ public partial class MainWindow : Window
         }
 
         Conversation.Items.Add($"Tú: {message}");
-        string reply = $"BAEL ({GetModeName(mode)}): {Responses.For(mode, message)}";
+        latestReply = Responses.For(mode, message);
+        ReadAloudButton.IsEnabled = true;
+        string reply = $"BAEL ({GetModeName(mode)}): {latestReply}";
         Conversation.Items.Add(reply);
         Conversation.ScrollIntoView(reply);
         Message.Clear();
         Message.Focus();
+    }
+
+    private async void ReadAloud(object sender, RoutedEventArgs e)
+    {
+        if (voiceRequest is not null)
+        {
+            voiceRequest.Cancel();
+            return;
+        }
+
+        if (voiceFile is not null)
+        {
+            EndPlayback("");
+            return;
+        }
+
+        if (latestReply is not string text)
+            return;
+
+        using var request = new CancellationTokenSource();
+        voiceRequest = request;
+        ReadAloudButton.Content = "Cancelar";
+        VoiceStatus.Text = "Generando audio…";
+        try
+        {
+            byte[] audio = await ElevenLabsVoice.GenerateAsync(text, request.Token);
+            request.Token.ThrowIfCancellationRequested();
+
+            voiceFile = Path.Combine(Path.GetTempPath(), $"bael-{Guid.NewGuid():N}.mp3");
+            File.WriteAllBytes(voiceFile, audio);
+            ReadAloudButton.Content = "Detener audio";
+            VoiceStatus.Text = "Reproduciendo…";
+            voicePlayer.Open(new Uri(voiceFile));
+            voicePlayer.Play();
+        }
+        catch (OperationCanceledException)
+        {
+            if (!isClosed)
+                EndPlayback(request.IsCancellationRequested ? "" : "ElevenLabs tardó demasiado. Intenta de nuevo.");
+        }
+        catch (HttpRequestException error)
+        {
+            EndPlayback(error.StatusCode is { } status
+                ? $"ElevenLabs devolvió el código {(int)status}. Revisa la clave, la voz y el saldo."
+                : "No se pudo conectar con ElevenLabs.");
+        }
+        catch (InvalidOperationException error)
+        {
+            EndPlayback(error.Message);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or FormatException)
+        {
+            EndPlayback("Revisa la configuración de voz y el acceso a la carpeta temporal.");
+        }
+        finally
+        {
+            voiceRequest = null;
+        }
+    }
+
+    private void EndPlayback(string status)
+    {
+        ReleaseAudio();
+        ReadAloudButton.Content = "Leer en voz alta";
+        VoiceStatus.Text = status;
+    }
+
+    private void ReleaseAudio()
+    {
+        voicePlayer.Close();
+        if (voiceFile is not string file)
+            return;
+
+        voiceFile = null;
+        try
+        {
+            File.Delete(file);
+        }
+        catch (IOException)
+        {
+            // Windows may still hold the temporary audio file.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // The temporary directory may be restricted.
+        }
     }
 
     private static string GetModeName(ChatMode option) => option switch

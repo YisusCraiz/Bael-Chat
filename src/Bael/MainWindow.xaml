@@ -59,8 +59,10 @@
                         Padding="8,4" Click="SendMessage" IsDefault="True" />
                 <TextBox x:Name="Message" Padding="6,4" AutomationProperties.Name="Mensaje" />
             </DockPanel>
-            <Button Content="Leer en voz alta" IsEnabled="False" HorizontalAlignment="Left"
-                    Margin="0,8,0,0" Padding="8,4" />
+            <Button x:Name="ReadAloudButton" Content="Leer en voz alta" IsEnabled="False"
+                    HorizontalAlignment="Left" Margin="0,8,0,0" Padding="8,4" Click="ReadAloud" />
+            <TextBlock x:Name="VoiceStatus" TextWrapping="Wrap" Margin="0,4,0,0"
+                       AutomationProperties.LiveSetting="Polite" />
         </StackPanel>
     </StackPanel>
 </Window>

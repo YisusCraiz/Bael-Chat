@@ -33,4 +33,11 @@ Crea una rama desde `main` actualizado y abre un PR por tarea. Incluye qué camb
 
 Cada perfil recibe el mensaje como texto y devuelve la respuesta como texto. `Responses.cs` contiene los puntos de entrada de muestra para los dos perfiles. Mantén tu implementación en un archivo de tu módulo y conecta únicamente el método de tu perfil.
 
-La consulta de PDF y las citas por página quedan para una fase posterior. El botón de voz se habilitará al integrar ElevenLabs. Guarda cualquier clave de voz en la configuración local de la PC de demostración.
+La consulta de PDF y las citas por página quedan para una fase posterior.
+
+## Configurar la voz opcional
+
+1. En Windows abre **Editar las variables de entorno de tu cuenta**.
+2. Crea `BAEL_ELEVENLABS_API_KEY` con tu clave de ElevenLabs y `BAEL_ELEVENLABS_VOICE_ID` con el ID de una voz disponible en tu cuenta. Guarda ambos valores solo en la PC de prueba.
+3. Cierra y vuelve a abrir BAEL. Si usas F5, reinicia Visual Studio para cargar las variables.
+4. Envía un mensaje en Tarot o Comedia y pulsa **Leer en voz alta**. BAEL envía a ElevenLabs el texto de su última respuesta solo cuando pulsas ese botón. Puedes cancelar la solicitud o detener la reproducción. Si falta configuración o falla el servicio, el chat sigue funcionando.
