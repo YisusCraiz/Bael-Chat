@@ -8,17 +8,14 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        if (e.Args is not ["--smoke-test", var resultPath])
-            return;
-
-        StartupUri = null;
-        var window = new MainWindow();
-        MainWindow = window;
-        window.ContentRendered += (_, _) =>
+        if (e.Args is ["--smoke-test", var resultPath])
         {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
             try
             {
+                var window = new MainWindow();
                 window.VerifyStartup();
+                window.Close();
                 File.WriteAllText(resultPath, "OK");
                 Shutdown(0);
             }
@@ -27,7 +24,11 @@ public partial class App : Application
                 File.WriteAllText(resultPath, error.ToString());
                 Shutdown(1);
             }
-        };
-        window.Show();
+
+            return;
+        }
+
+        MainWindow = new MainWindow();
+        MainWindow.Show();
     }
 }

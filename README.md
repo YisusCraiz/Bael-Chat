@@ -24,7 +24,7 @@ Aplicación de escritorio para Windows desarrollada en C# y WPF.
 
 ## Comprobación en GitHub
 
-Antes de publicar el ZIP, GitHub Actions abre la ventana de BAEL en Windows, ejecuta los manejadores del chat con Tarot y Comedia y comprueba que la conversación siga presente al ocultar y reabrir el panel. Para la revisión visual, prueba también los tres clics, las animaciones y la voz en tu PC.
+Antes de publicar el ZIP, GitHub Actions inicializa la ventana de BAEL en Windows, ejecuta los manejadores del chat con Tarot y Comedia y comprueba que la conversación siga presente al ocultar y reabrir el panel. Para la revisión visual, prueba también los tres clics, las animaciones y la voz en tu PC.
 
 ## Trabajar en equipo
 
