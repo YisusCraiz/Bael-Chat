@@ -2,6 +2,14 @@
 
 Aplicación de escritorio para Windows desarrollada en C# y WPF.
 
+## Instalar BAEL
+
+[Descargar el instalador BAEL-Setup.exe](https://github.com/YisusCraiz/Bael-Chat/releases/latest/download/BAEL-Setup.exe)
+
+Ejecuta el instalador en Windows x64. Instala la aplicación para tu usuario, incluye .NET y los sprites y crea un acceso en el menú Inicio. Puedes elegir un acceso en el escritorio. Abre BAEL desde Inicio y configura tus claves en Ajustes. Se puede desinstalar desde Aplicaciones instaladas de Windows.
+
+Cada publicación en main genera una versión descargable cuando pasan la compilación y las pruebas de instalación, arranque y desinstalación. El instalador inicial no tiene firma digital.
+
 ## Abrir en Visual Studio
 
 1. En Windows, abre **Visual Studio Installer** y elige **Modificar** en Visual Studio 2022 (17.8 o posterior).
