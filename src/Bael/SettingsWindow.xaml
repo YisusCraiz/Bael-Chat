@@ -14,6 +14,7 @@
         </StackPanel>
         <TabControl>
             <TabItem Header="General">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="16">
                     <CheckBox x:Name="PinWindow" Content="Mantener BAEL encima de otras ventanas" Margin="0,0,0,12" />
                     <CheckBox x:Name="AllowWalking" Content="Mover la mascota con el chat oculto" Margin="0,0,0,16" />
@@ -27,6 +28,7 @@
                     <Slider x:Name="Volume" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" />
                     <TextBlock Text="{Binding ElementName=Volume, Path=Value, StringFormat={}{0:0}%}" />
                 </StackPanel>
+                </ScrollViewer>
             </TabItem>
             <TabItem Header="Chat · Gemini">
                 <StackPanel Margin="16">
