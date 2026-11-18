@@ -1,4 +1,6 @@
 using System.IO;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using System.Windows;
@@ -15,6 +17,10 @@ public partial class SettingsWindow : Window
     private WasapiCapture? capture;
     private MMDevice? microphone;
 
+    private readonly ObservableCollection<AiProfile> profiles = new();
+    private int editingIndex = -1;
+    private bool loadingProfile;
+
     internal BaelSettings Settings { get; private set; }
 
     internal SettingsWindow(BaelSettings settings, bool unreadable)
@@ -27,8 +33,13 @@ public partial class SettingsWindow : Window
         MessageThreshold.Value = Math.Clamp(settings.MessagesToUndress, 2, 10);
         Volume.Value = settings.Volume * 100;
         OnlineChat.IsChecked = settings.OnlineChat;
-        GeminiKey.Password = settings.GeminiKey;
-        GeminiModel.Text = settings.GeminiModel;
+        AutoFallback.IsChecked = settings.AutoFallback;
+        Provider.ItemsSource = AiProviders.All;
+        foreach (AiProfile profile in settings.GetProfiles())
+            profiles.Add(profile with { });
+        ProfileList.ItemsSource = profiles;
+        ProfileList.SelectedIndex = profiles.Count > 0 ? 0 : -1;
+        ProfileEditor.IsEnabled = profiles.Count > 0;
         VoiceKey.Password = settings.VoiceKey;
         VoiceId.Text = settings.VoiceId;
         Closed += (_, _) => StopMicTest();
@@ -49,6 +60,122 @@ public partial class SettingsWindow : Window
 
         if (unreadable)
             Status.Text = "No se pudo leer la configuración anterior. Guardar creará una nueva.";
+    }
+
+    private void StoreProfile()
+    {
+        if (editingIndex < 0 || editingIndex >= profiles.Count)
+            return;
+        bool wasLoading = loadingProfile;
+        loadingProfile = true;
+        profiles[editingIndex] = new AiProfile
+        {
+            Provider = Provider.SelectedValue as string ?? "Gemini",
+            Model = ProfileModel.Text.Trim(),
+            Key = ProfileKey.Password.Trim(),
+            Enabled = ProfileEnabled.IsChecked == true
+        };
+        loadingProfile = wasLoading;
+    }
+
+    private void SelectProfile(object sender, SelectionChangedEventArgs e)
+    {
+        if (loadingProfile)
+            return;
+        int selected = ProfileList.SelectedIndex;
+        StoreProfile();
+        editingIndex = selected;
+        LoadProfile();
+    }
+
+    private void LoadProfile()
+    {
+        loadingProfile = true;
+        ProfileEditor.IsEnabled = editingIndex >= 0 && editingIndex < profiles.Count;
+        if (ProfileEditor.IsEnabled)
+        {
+            AiProfile profile = profiles[editingIndex];
+            Provider.SelectedValue = profile.Provider;
+            ProfileModel.Text = profile.Model;
+            ProfileKey.Password = profile.Key;
+            ProfileEnabled.IsChecked = profile.Enabled;
+            UpdateProviderHelp();
+        }
+        loadingProfile = false;
+    }
+
+    private void ChangeProvider(object sender, SelectionChangedEventArgs e)
+    {
+        if (loadingProfile || Provider.SelectedValue is not string name)
+            return;
+        ProfileModel.Text = AiProviders.Get(name).Model;
+        ProfileKey.Password = "";
+        UpdateProviderHelp();
+    }
+
+    private void UpdateProviderHelp()
+    {
+        if (Provider.SelectedValue is string name)
+            ProviderHelp.Text = AiProviders.Get(name).Description;
+    }
+
+    private void AddProfile(object sender, RoutedEventArgs e)
+    {
+        StoreProfile();
+        ProviderInfo choice = AiProviders.All.FirstOrDefault(info => profiles.All(profile => profile.Provider != info.Name))
+            ?? AiProviders.All[0];
+        profiles.Add(new AiProfile { Provider = choice.Name, Model = choice.Model });
+        ProfileList.SelectedIndex = profiles.Count - 1;
+    }
+
+    private void RemoveProfile(object sender, RoutedEventArgs e)
+    {
+        int index = ProfileList.SelectedIndex;
+        if (index < 0)
+            return;
+        loadingProfile = true;
+        profiles.RemoveAt(index);
+        editingIndex = -1;
+        loadingProfile = false;
+        ProfileList.SelectedIndex = Math.Min(index, profiles.Count - 1);
+        editingIndex = ProfileList.SelectedIndex;
+        LoadProfile();
+    }
+
+    private void MoveUp(object sender, RoutedEventArgs e) => MoveProfile(-1);
+    private void MoveDown(object sender, RoutedEventArgs e) => MoveProfile(1);
+
+    private void MoveProfile(int direction)
+    {
+        int index = ProfileList.SelectedIndex;
+        int target = index + direction;
+        if (index < 0 || target < 0 || target >= profiles.Count)
+            return;
+        StoreProfile();
+        loadingProfile = true;
+        profiles.Move(index, target);
+        ProfileList.SelectedIndex = target;
+        editingIndex = target;
+        loadingProfile = false;
+        LoadProfile();
+    }
+
+    private void OpenKeyPage(object sender, RoutedEventArgs e) => OpenProviderLink(false);
+    private void OpenProviderDocs(object sender, RoutedEventArgs e) => OpenProviderLink(true);
+
+    private void OpenProviderLink(bool docs)
+    {
+        if (Provider.SelectedValue is not string name)
+            return;
+        ProviderInfo info = AiProviders.Get(name);
+        try
+        {
+            Process.Start(new ProcessStartInfo(docs ? info.DocsUrl : info.KeyUrl) { UseShellExecute = true });
+        }
+        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Status.Text = "Windows no pudo abrir el navegador.";
+        }
     }
 
     internal void LoadAudioDevices()
@@ -127,14 +254,16 @@ public partial class SettingsWindow : Window
 
     private void Save(object sender, RoutedEventArgs e)
     {
-        string model = GeminiModel.Text.Trim();
-        if (model.StartsWith("models/", StringComparison.Ordinal))
-            model = model["models/".Length..];
-
-        if (model.Length > 0 && !Regex.IsMatch(model, "^[a-zA-Z0-9._-]+$"))
+        StoreProfile();
+        foreach (AiProfile profile in profiles)
         {
-            Status.Text = "Escribe un ID de modelo válido, por ejemplo gemini-2.5-flash.";
-            return;
+            if (!AiProviders.All.Any(info => info.Name == profile.Provider)
+                || !Regex.IsMatch(profile.Model, "^[a-zA-Z0-9][a-zA-Z0-9._/:-]*$")
+                || profile.Key.Contains('\r') || profile.Key.Contains('\n'))
+            {
+                Status.Text = "Revisa el proveedor, el ID del modelo y la clave de cada conexión.";
+                return;
+            }
         }
 
         var updated = new BaelSettings
@@ -145,17 +274,17 @@ public partial class SettingsWindow : Window
             Walk = AllowWalking.IsChecked == true,
             Volume = Volume.Value / 100,
             OnlineChat = OnlineChat.IsChecked == true,
-            GeminiKey = GeminiKey.Password.Trim(),
-            GeminiModel = model.Length == 0 ? new BaelSettings().GeminiModel : model,
+            AutoFallback = AutoFallback.IsChecked == true,
+            Profiles = profiles.ToList(),
             VoiceKey = VoiceKey.Password.Trim(),
             VoiceId = VoiceId.Text.Trim(),
             InputDeviceId = InputDevice.SelectedValue as string ?? Settings.InputDeviceId,
             OutputDeviceId = OutputDevice.SelectedValue as string ?? Settings.OutputDeviceId
         };
 
-        if (updated.OnlineChat && updated.EffectiveGeminiKey.Length == 0)
+        if (updated.OnlineChat && !updated.GetProfiles().Any(profile => profile.Enabled && AiProviders.KeyFor(profile).Length > 0))
         {
-            Status.Text = "Agrega una clave de Gemini para activar el chat en línea.";
+            Status.Text = "Activa una conexión y agrega su clave para usar la IA en línea.";
             return;
         }
 

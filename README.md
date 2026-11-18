@@ -55,13 +55,33 @@ La consulta de PDF y las citas por página quedan para una fase posterior.
 
 ## Ajustes de BAEL
 
-Haz clic izquierdo sobre el sprite y abre el engrane que aparece debajo. Los cambios guardados se aplican en esa sesión y se conservan al reiniciar. BAEL guarda los ajustes cifrados con la cuenta de Windows en `%LOCALAPPDATA%\BAEL`.
+Pulsa Shift + clic derecho sobre el personaje y elige el engrane. La ventana se divide en Personaje, Chat y APIs, y Voz y audio. Guarda al terminar para aplicar los cambios y conservarlos cifrados en tu perfil de Windows.
 
-- **General:** mantener la ventana encima, activar o desactivar la caminata y ajustar el volumen.
-- **Chat · Gemini:** activa el chat en línea para Tarot y Comedia, pega tu clave y elige el modelo. Si dejas el modelo vacío se usa `gemini-2.5-flash`. El modo Estudiante ofrece ayuda general de estudio; las consultas de PDF siguen pendientes.
-- **Voz · ElevenLabs:** pega la clave y el ID de una voz. Elige la salida para la lectura, o usa la predeterminada de Windows. Puedes seleccionar un micrófono y probar su nivel localmente. La entrada de micrófono no se usa para transcribir ni se envía a ElevenLabs. Envía un mensaje y pulsa **Leer en voz alta**.
+En Chat y APIs puedes añadir conexiones, elegir proveedor, modelo y clave, activarlas y ordenarlas con Subir/Bajar. Los botones Obtener clave y Ver plan y límites abren las páginas oficiales. Cada proveedor tiene una explicación en el editor.
 
-Los campos guardados tienen prioridad. Si dejas un campo vacío, BAEL usa la variable local correspondiente cuando existe: `BAEL_GEMINI_API_KEY`, `BAEL_ELEVENLABS_API_KEY` o `BAEL_ELEVENLABS_VOICE_ID`. El repositorio no contiene claves de API predeterminadas.
+Opciones sugeridas, revisadas el 18 de noviembre de 2026:
+
+| Proveedor | Modelo sugerido | Uso |
+| --- | --- | --- |
+| Google Gemini | gemini-2.5-flash-lite | Ayuda general y repaso, con nivel gratuito limitado. |
+| Groq | openai/gpt-oss-120b | Conversación y razonamiento, con plan gratuito limitado. |
+| OpenRouter | openrouter/free | Respaldo que selecciona un modelo gratuito disponible. |
+
+La disponibilidad y las cuotas dependen de la cuenta. Otros IDs pueden tener costo según el proveedor. Revisa el plan y la facturación antes de usarlos.
+
+Fuentes oficiales
+
+- https://ai.google.dev/gemini-api/docs/pricing
+- https://console.groq.com/docs/rate-limits
+- https://openrouter.ai/docs/guides/routing/routers/free-router
+
+Si activas el cambio automático, BAEL intenta las conexiones activas en el orden elegido. Una cuota agotada, clave rechazada, error de servicio, respuesta vacía o tiempo de espera agotado hacen que intente la siguiente. El modelo que responde recibe el mensaje y el contexto reciente del modo. BAEL conserva las instrucciones del tutor y muestra qué proveedor respondió. Las conexiones agotadas quedan en espera durante 15 minutos o el plazo Retry-After que indique el proveedor, si es mayor; los errores temporales esperan 30 segundos. Esta espera se conserva durante la sesión.
+
+Sin conexiones disponibles, el chat conserva su guía local. El relevo afecta a la conversación; ElevenLabs sigue configurándose por separado en Voz y audio.
+
+La clave guardada tiene prioridad. Un campo vacío usa la variable local del proveedor si existe: BAEL_GEMINI_API_KEY, BAEL_GROQ_API_KEY o BAEL_OPENROUTER_API_KEY. La clave y el modelo de Gemini de versiones anteriores se conservan como primera conexión al abrir los ajustes nuevos.
+
+Voz y audio permite guardar BAEL_ELEVENLABS_API_KEY y BAEL_ELEVENLABS_VOICE_ID mediante campos locales, seleccionar la salida para la lectura y probar el nivel del micrófono. La entrada sigue siendo una prueba local. El repositorio contiene solo nombres de variables y valores de prueba ficticios.
 
 ## Usar sprites propios
 

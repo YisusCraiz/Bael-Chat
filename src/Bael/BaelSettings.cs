@@ -15,6 +15,13 @@ internal sealed record BaelSettings
     public bool Walk { get; init; } = true;
     public double Volume { get; init; } = 0.8;
     public bool OnlineChat { get; init; }
+    public bool AutoFallback { get; init; } = true;
+    public List<AiProfile>? Profiles { get; init; }
+    public List<AiProfile> GetProfiles() => Profiles ?? [new AiProfile
+    {
+        Provider = "Gemini", Model = GeminiModel, Key = GeminiKey
+    }];
+
     public string GeminiKey { get; init; } = "";
     public string GeminiModel { get; init; } = "gemini-2.5-flash";
     public string VoiceKey { get; init; } = "";

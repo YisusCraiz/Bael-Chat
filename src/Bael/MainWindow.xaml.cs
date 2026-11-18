@@ -18,6 +18,7 @@ public partial class MainWindow : Window
     internal BaelSettings CurrentSettings => settings;
     internal event Action? UserSpoke;
     internal event Action<ChatMode>? ModeChanged;
+    private readonly ChatRouter router = new();
     private readonly Dictionary<ChatMode, List<ChatTurn>> histories = new();
 
     internal void SelectMode(ChatMode selected)
@@ -332,20 +333,17 @@ public partial class MainWindow : Window
         }
 
         SendButton.IsEnabled = false;
-        ChatStatus.Text = "Consultando Gemini…";
+        ChatStatus.Text = "Consultando las APIs activas…";
         try
         {
-            string? onlineReply = await GeminiChat.ReplyAsync(current, profile, message, history.ToArray(), chatLifetime.Token);
+            ChatResult result = await router.ReplyAsync(current, profile, message, history.ToArray(), chatLifetime.Token,
+                new Progress<string>(status => { if (!isClosed) ChatStatus.Text = status; }));
             if (isClosed)
                 return;
 
-            if (string.IsNullOrWhiteSpace(onlineReply))
-                ChatStatus.Text = "Gemini no devolvió texto. Se mostró una respuesta local.";
-            else
-            {
-                reply = onlineReply;
-                ChatStatus.Text = "";
-            }
+            if (!string.IsNullOrWhiteSpace(result.Text))
+                reply = result.Text;
+            ChatStatus.Text = result.Status;
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException
                                       or FormatException or JsonException or InvalidOperationException)
@@ -353,7 +351,7 @@ public partial class MainWindow : Window
             if (isClosed)
                 return;
 
-            ChatStatus.Text = "Gemini no respondió. Revisa la clave, el modelo o la conexión. Se mostró una respuesta local.";
+            ChatStatus.Text = "Las APIs no respondieron. Revisa Ajustes. Se mostró una guía local.";
         }
         finally
         {

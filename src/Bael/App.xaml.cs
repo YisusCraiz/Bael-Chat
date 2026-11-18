@@ -5,7 +5,7 @@ namespace Bael;
 
 public partial class App : Application
 {
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
         if (e.Args is ["--smoke-test", var resultPath])
@@ -19,6 +19,7 @@ public partial class App : Application
                 var companion = new DesktopWindow(testMode: true);
                 companion.VerifyCompanion();
                 companion.Close();
+                await ChatRouterChecks.RunAsync();
                 File.WriteAllText(resultPath, "OK");
                 Shutdown(0);
             }
