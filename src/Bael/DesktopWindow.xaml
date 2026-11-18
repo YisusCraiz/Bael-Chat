@@ -1,0 +1,19 @@
+<Window x:Class="Bael.DesktopWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BAEL · Mascota" Width="230" Height="240" WindowStyle="None"
+        AllowsTransparency="True" Background="{x:Null}" ResizeMode="NoResize"
+        ShowInTaskbar="True" Topmost="True" WindowStartupLocation="Manual"
+        PreviewKeyDown="WheelKey">
+    <Grid>
+        <Image x:Name="Character" Margin="0,35,0,0" Stretch="Uniform"
+               MouseRightButtonUp="OpenWheel" MouseLeftButtonDown="BeginDrag" MouseMove="MoveDrag" MouseLeftButtonUp="EndDrag"
+               AutomationProperties.Name="Chico BAEL. Pulsa para hablar o arrastra para mover."
+               ToolTip="Pulsa para hablar. Arrastra para mover. Shift + clic derecho abre los modos y ajustes." />
+        <Popup x:Name="ModeWheel" PlacementTarget="{Binding ElementName=Character}" Placement="Center"
+               AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade">
+            <Canvas x:Name="WheelCanvas" Width="370" Height="370" Background="{x:Null}"
+                    PreviewKeyDown="WheelKey" />
+        </Popup>
+    </Grid>
+</Window>
