@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -14,6 +16,8 @@ public partial class DesktopWindow : Window
     private readonly Dictionary<string, BitmapImage[]> frames = new();
     private readonly Queue<long> messages = new();
     private BaelSettings settings;
+    private ChatMode selectedMode = ChatMode.Student;
+    private long actionUntil;
     private string outfit = "boy";
     private string? transition;
     private int frame;
@@ -29,7 +33,7 @@ public partial class DesktopWindow : Window
         InitializeComponent();
         settings = chat.CurrentSettings;
         Topmost = settings.Topmost;
-        foreach (string name in new[] { "boy", "headless", "unicorn", "magic" })
+        foreach (string name in new[] { "boy", "headless", "unicorn", "magic", "tarot", "comedy", "system", "math", "english" })
         {
             frames[name] = Enumerable.Range(0, 4).Select(index =>
             {
@@ -44,6 +48,7 @@ public partial class DesktopWindow : Window
             }).ToArray();
         }
 
+        BuildWheel();
         SetOutfit("boy");
         Loaded += (_, _) =>
         {
@@ -53,6 +58,15 @@ public partial class DesktopWindow : Window
         };
         timer.Tick += Tick;
         chat.UserSpoke += OnMessage;
+        chat.ModeChanged += selected =>
+        {
+            selectedMode = selected;
+            transition = null;
+            messages.Clear();
+            lastActivity = Environment.TickCount64;
+            actionUntil = lastActivity + 1800;
+            SetOutfit(Responses.Sprite(selected));
+        };
         chat.SettingsChanged += updated =>
         {
             settings = updated;
@@ -71,7 +85,7 @@ public partial class DesktopWindow : Window
 
     internal void VerifyCompanion()
     {
-        if (!AllowsTransparency || WindowStyle != WindowStyle.None || frames.Count != 4)
+        if (!AllowsTransparency || WindowStyle != WindowStyle.None || frames.Count != 9)
             throw new InvalidOperationException("La mascota no está preparada para el escritorio.");
 
         outfit = "unicorn";
@@ -84,6 +98,18 @@ public partial class DesktopWindow : Window
 
         if (outfit != "boy")
             throw new InvalidOperationException("La conversación no retiró el disfraz.");
+
+        foreach (ChatMode mode in Enum.GetValues<ChatMode>())
+        {
+            chat.SelectMode(mode);
+            if (outfit != Responses.Sprite(mode) || selectedMode != mode)
+                throw new InvalidOperationException("La selección del modo no cambió el sprite.");
+            if (string.IsNullOrWhiteSpace(Responses.For(mode, "prueba")))
+                throw new InvalidOperationException("El modo no tiene respuesta local.");
+        }
+        chat.SelectMode(ChatMode.Student);
+        if (WheelCanvas.Children.Count != 8)
+            throw new InvalidOperationException("Faltan burbujas de la rueda.");
 
         foreach (var sequence in frames.Values)
             if (sequence.Length != 4 || sequence.Any(image => image.PixelWidth == 0))
@@ -109,7 +135,7 @@ public partial class DesktopWindow : Window
     {
         lastActivity = Environment.TickCount64;
         transition = null;
-        if (outfit == "unicorn")
+        if (selectedMode == ChatMode.Student && outfit == "unicorn")
         {
             SetOutfit("headless");
             transition = "head-off";
@@ -120,6 +146,9 @@ public partial class DesktopWindow : Window
     {
         Interact();
         long now = Environment.TickCount64;
+        actionUntil = now + 2400;
+        if (selectedMode != ChatMode.Student)
+            return;
         messages.Enqueue(now);
         while (messages.Count > 0 && now - messages.Peek() > 60000)
             messages.Dequeue();
@@ -134,11 +163,11 @@ public partial class DesktopWindow : Window
     {
         long now = Environment.TickCount64;
         long idleDelay = Math.Clamp(settings.IdleSeconds, 10, 300) * 1000L;
-        bool paused = IsMouseOver || dragStart is not null || settingsOpen || chat.IsVisible;
+        bool paused = IsMouseOver || dragStart is not null || settingsOpen || chat.IsVisible || ModeWheel.IsOpen;
         if (paused)
             lastActivity = now;
 
-        if (!paused && now - lastActivity >= idleDelay && outfit != "unicorn" && transition is null)
+        if (selectedMode == ChatMode.Student && !paused && now - lastActivity >= idleDelay && outfit != "unicorn" && transition is null)
         {
             transition = "dress";
             frame = 0;
@@ -178,7 +207,8 @@ public partial class DesktopWindow : Window
         }
 
         bool walking = settings.Walk && !paused && outfit == "unicorn";
-        int pose = walking ? 2 + (frame / 3 % 2) : (frame % 45 == 44 ? 1 : 0);
+        int pose = walking || (selectedMode != ChatMode.Student && now < actionUntil)
+            ? 2 + (frame / 3 % 2) : (frame % 45 >= 42 ? 1 : 0);
         Character.Source = frames[outfit][pose];
         frame = (frame + 1) % 900;
         if (walking)
@@ -192,8 +222,104 @@ public partial class DesktopWindow : Window
         }
     }
 
-    private void RevealControls(object sender, MouseEventArgs e) => Controls.Visibility = Visibility.Visible;
-    private void HideControls(object sender, MouseEventArgs e) => Controls.Visibility = Visibility.Collapsed;
+    private void BuildWheel()
+    {
+        ChatMode[] modes = Enum.GetValues<ChatMode>();
+        for (int index = 0; index < 8; index++)
+        {
+            var content = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            if (index < modes.Length)
+            {
+                ChatMode option = modes[index];
+                content.Children.Add(new Image { Source = frames[Responses.Sprite(option)][0], Height = 40 });
+                content.Children.Add(new TextBlock
+                {
+                    Text = Responses.Name(option), FontSize = 10,
+                    TextAlignment = TextAlignment.Center
+                });
+            }
+            else
+            {
+                content.Children.Add(new TextBlock
+                {
+                    Text = index == 6 ? "⚙" : "×", FontSize = 23,
+                    TextAlignment = TextAlignment.Center
+                });
+                content.Children.Add(new TextBlock
+                {
+                    Text = index == 6 ? "Ajustes" : "Salir", FontSize = 10,
+                    TextAlignment = TextAlignment.Center
+                });
+            }
+
+            var circle = new FrameworkElementFactory(typeof(Border));
+            circle.SetValue(Border.CornerRadiusProperty, new CornerRadius(40));
+            circle.SetValue(Border.BackgroundProperty, Brushes.White);
+            circle.SetValue(Border.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(118, 107, 209)));
+            circle.SetValue(Border.BorderThicknessProperty, new Thickness(2));
+            var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
+            presenter.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+            presenter.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+            circle.AppendChild(presenter);
+            var button = new Button
+            {
+                Width = 78, Height = 78, Content = content,
+                Cursor = Cursors.Hand,
+                Template = new ControlTemplate(typeof(Button)) { VisualTree = circle }
+            };
+            int slot = index;
+            string label = slot < modes.Length ? Responses.Name(modes[slot]) : slot == 6 ? "Ajustes" : "Salir";
+            System.Windows.Automation.AutomationProperties.SetName(button, label);
+            button.ToolTip = label;
+            button.Click += (_, args) =>
+            {
+                ModeWheel.IsOpen = false;
+                if (slot < modes.Length)
+                {
+                    chat.SelectMode(modes[slot]);
+                    ShowChat(button, args);
+                }
+                else if (slot == 6)
+                    ShowSettings(button, args);
+                else
+                    Close();
+            };
+            double angle = (-90 + index * 45) * Math.PI / 180;
+            Canvas.SetLeft(button, 146 + Math.Cos(angle) * 139);
+            Canvas.SetTop(button, 146 + Math.Sin(angle) * 139);
+            WheelCanvas.Children.Add(button);
+        }
+    }
+
+    private void OpenWheel(object sender, MouseButtonEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+            return;
+        ToggleWheel();
+        e.Handled = true;
+    }
+
+    private void ToggleWheel()
+    {
+        lastActivity = Environment.TickCount64;
+        ModeWheel.IsOpen = !ModeWheel.IsOpen;
+        if (ModeWheel.IsOpen)
+            ((Button)WheelCanvas.Children[0]).Focus();
+    }
+
+    private void WheelKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            ModeWheel.IsOpen = false;
+            e.Handled = true;
+        }
+        else if (e.Key == Key.F10 && (Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+        {
+            ToggleWheel();
+            e.Handled = true;
+        }
+    }
 
     private void BeginDrag(object sender, MouseButtonEventArgs e)
     {

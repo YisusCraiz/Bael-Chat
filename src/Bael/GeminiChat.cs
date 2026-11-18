@@ -4,16 +4,16 @@ using System.Text.Json;
 
 namespace Bael;
 
+internal sealed record ChatTurn(string Role, string Text);
+
 internal static class GeminiChat
 {
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromSeconds(25) };
 
-    public static async Task<string?> ReplyAsync(BaelSettings settings, ChatMode mode, string message,
+    public static async Task<string?> ReplyAsync(BaelSettings settings, ChatMode mode, string message, IReadOnlyList<ChatTurn> history,
                                                   CancellationToken cancellationToken)
     {
-        string instruction = mode == ChatMode.Tarot
-            ? "Eres BAEL en modo tarot ficticio. Da una tirada imaginaria breve y termina con una pregunta de reflexión. No predigas hechos."
-            : "Eres BAEL, comediante del campus. Responde en español con un remate breve sobre la situación de clase, sin atacar a personas.";
+        string instruction = Responses.Instruction(mode) + " Responde en español salvo las frases de práctica de inglés.";
 
         using var request = new HttpRequestMessage(HttpMethod.Post,
             $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(settings.GeminiModel)}:generateContent");
@@ -21,7 +21,8 @@ internal static class GeminiChat
         request.Content = JsonContent.Create(new
         {
             system_instruction = new { parts = new[] { new { text = instruction } } },
-            contents = new[] { new { parts = new[] { new { text = message } } } }
+            contents = history.Select(turn => new { role = turn.Role, parts = new[] { new { text = turn.Text } } })
+                .Append(new { role = "user", parts = new[] { new { text = message } } }).ToArray()
         });
 
         using HttpResponseMessage response = await Client.SendAsync(request, cancellationToken);

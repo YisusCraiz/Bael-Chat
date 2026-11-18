@@ -17,15 +17,28 @@ Aplicación de escritorio para Windows desarrollada en C# y WPF.
 
 ## Mascota sobre el escritorio
 
-BAEL inicia como chico chibi con fondo transparente. Arrástralo para colocarlo dentro del escritorio principal. Acerca el cursor al personaje para mostrar los botones de Chat, Ajustes y Salir. El engrane está encima del sprite y abre una ventana flotante. Un clic en el personaje abre el chat; cerrar el chat lo oculta y conserva la conversación durante la sesión. Para salir usa × encima del personaje.
+BAEL inicia como chico chibi con fondo transparente. Arrástralo para colocarlo dentro del escritorio principal. Pulsa **Shift + clic derecho** sobre el personaje para abrir la rueda de burbujas. Cada modo tiene una miniatura y un nombre; el engrane abre Ajustes. Pulsa fuera de la rueda o Escape para cerrarla. También puedes abrirla con Shift + F10 cuando BAEL tiene el foco. El engrane está encima del sprite y abre una ventana flotante. Un clic en el personaje abre el chat; cerrar el chat lo oculta y conserva la conversación durante la sesión. Para salir usa la burbuja × de la rueda.
 
-Tras 30 segundos sin interacción, el chico se viste de unicornio con una transformación mágica y camina por el escritorio. Abrir el chat descubre su cabeza. Cuatro mensajes enviados en un minuto retiran el resto del disfraz. El chat abierto, el cursor sobre la mascota o los ajustes abiertos pausan el tiempo de inactividad. Estos tiempos se ajustan desde General. Hablar corresponde a mensajes escritos en el chat.
+En el modo Estudiante, tras 30 segundos sin interacción, el chico se viste de unicornio con una transformación mágica y camina por el escritorio. Abrir el chat descubre su cabeza. Cuatro mensajes enviados en un minuto retiran el resto del disfraz. El chat abierto, el cursor sobre la mascota o los ajustes abiertos pausan el tiempo de inactividad. Estos tiempos se ajustan desde General. Hablar corresponde a mensajes escritos en el chat.
+
+## Modos
+
+Estudiante es el modo inicial. Su disfraz de unicornio y sus transformaciones pertenecen a ese modo. Tarot, Comedia, Sistema, Matemáticas e Inglés tienen cuatro sprites propios: reposo, parpadeo y dos gestos de actividad. Los gestos aparecen al cambiar de modo o enviar un mensaje. También puedes cambiar de modo desde el chat.
+
+- **Estudiante:** organización y explicaciones de estudio. PDF pendiente.
+- **Tarot:** tirada ficticia y reflexión.
+- **Comedia:** humor del campus.
+- **Sistema:** preguntas para orientar problemas sencillos. Escribe diagnóstico para leer Windows, procesadores y espacio en discos locales. La información permanece local; los mensajes que envíes a Gemini siguen la configuración del chat.
+- **Matemáticas:** pistas y preguntas para que el alumno resuelva su ejercicio y muestre su siguiente paso. La instrucción de Gemini pide evitar dar el resultado completo.
+- **Inglés:** presente, pasado, futuro y aproximaciones de pronunciación. El botón de voz permite escuchar la respuesta con ElevenLabs.
+
+Sin Gemini los modos usan guías locales básicas. Con Gemini activado se conserva hasta seis intercambios por modo durante la sesión para continuar los ejercicios. La prueba de micrófono sigue siendo un medidor local; la práctica de pronunciación ofrece texto y audio de ejemplo.
 
 Los PNG incluidos están organizados en `src/Bael/Sprites/desktop`: `boy` (polo gris), `headless` (cabeza descubierta), `unicorn` (disfraz completo) y `magic` (transformación), cuatro fotogramas por grupo. Se copian automáticamente al compilar y publicar.
 
 ## Comprobación en GitHub
 
-Antes de publicar el ZIP, GitHub Actions inicializa la ventana de BAEL en Windows, ejecuta los manejadores del chat con Tarot y Comedia y comprueba que la conversación siga presente al ocultar y reabrir el panel. También comprueba la transparencia y carga de las cuatro secuencias de sprites y la respuesta del vestuario a la conversación. Para la revisión visual, prueba las animaciones, el arrastre y la voz en tu PC.
+Antes de publicar el ZIP, GitHub Actions inicializa la ventana de BAEL en Windows, ejecuta los manejadores del chat con Tarot y Comedia y comprueba que la conversación siga presente al ocultar y reabrir el panel. También comprueba la transparencia y carga de las nueve secuencias de sprites y la respuesta del vestuario a la conversación. Para la revisión visual, prueba las animaciones, el arrastre y la voz en tu PC.
 
 ## Trabajar en equipo
 
@@ -45,7 +58,7 @@ La consulta de PDF y las citas por página quedan para una fase posterior.
 Haz clic izquierdo sobre el sprite y abre el engrane que aparece debajo. Los cambios guardados se aplican en esa sesión y se conservan al reiniciar. BAEL guarda los ajustes cifrados con la cuenta de Windows en `%LOCALAPPDATA%\BAEL`.
 
 - **General:** mantener la ventana encima, activar o desactivar la caminata y ajustar el volumen.
-- **Chat · Gemini:** activa el chat en línea para Tarot y Comedia, pega tu clave y elige el modelo. Si dejas el modelo vacío se usa `gemini-2.5-flash`. El modo Estudiante conserva el aviso de documentos pendientes.
+- **Chat · Gemini:** activa el chat en línea para Tarot y Comedia, pega tu clave y elige el modelo. Si dejas el modelo vacío se usa `gemini-2.5-flash`. El modo Estudiante ofrece ayuda general de estudio; las consultas de PDF siguen pendientes.
 - **Voz · ElevenLabs:** pega la clave y el ID de una voz. Elige la salida para la lectura, o usa la predeterminada de Windows. Puedes seleccionar un micrófono y probar su nivel localmente. La entrada de micrófono no se usa para transcribir ni se envía a ElevenLabs. Envía un mensaje y pulsa **Leer en voz alta**.
 
 Los campos guardados tienen prioridad. Si dejas un campo vacío, BAEL usa la variable local correspondiente cuando existe: `BAEL_GEMINI_API_KEY`, `BAEL_ELEVENLABS_API_KEY` o `BAEL_ELEVENLABS_VOICE_ID`. El repositorio no contiene claves de API predeterminadas.

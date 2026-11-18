@@ -4,19 +4,16 @@
         Title="BAEL · Mascota" Width="230" Height="240" WindowStyle="None"
         AllowsTransparency="True" Background="{x:Null}" ResizeMode="NoResize"
         ShowInTaskbar="True" Topmost="True" WindowStartupLocation="Manual"
-        MouseEnter="RevealControls" MouseLeave="HideControls">
+        PreviewKeyDown="WheelKey">
     <Grid>
-        <StackPanel x:Name="Controls" Orientation="Horizontal" HorizontalAlignment="Center"
-                    VerticalAlignment="Top" Visibility="Collapsed">
-            <Button Content="Chat" Click="ShowChat" Padding="8,4" Margin="2" />
-            <Button Content="⚙" ToolTip="Ajustes" AutomationProperties.Name="Ajustes"
-                    Click="ShowSettings" Padding="8,4" Margin="2" />
-            <Button Content="×" ToolTip="Salir de BAEL" AutomationProperties.Name="Salir de BAEL"
-                    Click="Exit" Padding="8,4" Margin="2" />
-        </StackPanel>
         <Image x:Name="Character" Margin="0,35,0,0" Stretch="Uniform"
-               MouseLeftButtonDown="BeginDrag" MouseMove="MoveDrag" MouseLeftButtonUp="EndDrag"
+               MouseRightButtonUp="OpenWheel" MouseLeftButtonDown="BeginDrag" MouseMove="MoveDrag" MouseLeftButtonUp="EndDrag"
                AutomationProperties.Name="Chico BAEL. Pulsa para hablar o arrastra para mover."
-               ToolTip="Pulsa para hablar. Arrastra para mover. Acércate para mostrar ajustes." />
+               ToolTip="Pulsa para hablar. Arrastra para mover. Shift + clic derecho abre los modos y ajustes." />
+        <Popup x:Name="ModeWheel" PlacementTarget="{Binding ElementName=Character}" Placement="Center"
+               AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade">
+            <Canvas x:Name="WheelCanvas" Width="370" Height="370" Background="{x:Null}"
+                    PreviewKeyDown="WheelKey" />
+        </Popup>
     </Grid>
 </Window>

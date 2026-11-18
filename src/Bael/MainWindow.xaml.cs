@@ -17,6 +17,19 @@ public partial class MainWindow : Window
 {
     internal BaelSettings CurrentSettings => settings;
     internal event Action? UserSpoke;
+    internal event Action<ChatMode>? ModeChanged;
+    private readonly Dictionary<ChatMode, List<ChatTurn>> histories = new();
+
+    internal void SelectMode(ChatMode selected)
+    {
+        mode = selected;
+        ModeLabel.Text = $"Modo {Responses.Name(mode).ToLowerInvariant()}";
+        ModeChanged?.Invoke(mode);
+        ChatStatus.Text = mode == ChatMode.System
+            ? "Escribe diagnóstico para una revisión local básica."
+            : mode == ChatMode.Math ? "Escribe el ejercicio y tu intento. Te guío con pistas."
+            : mode == ChatMode.English ? "Pide presente, pasado, futuro o pronunciación." : "";
+    }
     internal event Action<BaelSettings>? SettingsChanged;
 
     internal void OpenConversation() => OpenChat(this, new RoutedEventArgs());
@@ -89,7 +102,7 @@ public partial class MainWindow : Window
         if (Chat.Visibility != Visibility.Visible || SettingsGear.Visibility != Visibility.Visible)
             throw new InvalidOperationException("El chat no abrió.");
 
-        foreach (ChatMode profile in new[] { ChatMode.Tarot, ChatMode.Comedy })
+        foreach (ChatMode profile in Enum.GetValues<ChatMode>())
         {
             mode = profile;
             const string message = "Mensaje de prueba";
@@ -107,7 +120,7 @@ public partial class MainWindow : Window
         if (SettingsGear.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("El engrane quedó visible al ocultar el chat.");
         OpenChat(MascotButton, click);
-        if (Chat.Visibility != Visibility.Visible || Conversation.Items.Count != 4)
+        if (Chat.Visibility != Visibility.Visible || Conversation.Items.Count != Enum.GetValues<ChatMode>().Length * 2)
             throw new InvalidOperationException("El chat perdió la conversación al volver a abrirlo.");
     }
 
@@ -261,8 +274,7 @@ public partial class MainWindow : Window
             var item = new MenuItem { Header = GetModeName(option), IsCheckable = true, IsChecked = option == mode };
             item.Click += (_, _) =>
             {
-                mode = option;
-                ModeLabel.Text = $"Modo {GetModeName(mode).ToLowerInvariant()}";
+                SelectMode(option);
                 Message.Focus();
             };
             menu.Items.Add(item);
@@ -299,7 +311,21 @@ public partial class MainWindow : Window
         ChatStatus.Text = "";
 
         string reply = Responses.For(profile, message);
-        if (!current.OnlineChat || profile == ChatMode.Student)
+        if (profile == ChatMode.System &&
+            (message.Contains("diagn", StringComparison.OrdinalIgnoreCase)
+             || message.Contains("examina", StringComparison.OrdinalIgnoreCase)
+             || message.Contains("revisa", StringComparison.OrdinalIgnoreCase)))
+        {
+            ShowReply(profile, reply);
+            return;
+        }
+
+        if (!histories.TryGetValue(profile, out var history))
+        {
+            history = new List<ChatTurn>();
+            histories[profile] = history;
+        }
+        if (!current.OnlineChat)
         {
             ShowReply(profile, reply);
             return;
@@ -309,7 +335,7 @@ public partial class MainWindow : Window
         ChatStatus.Text = "Consultando Gemini…";
         try
         {
-            string? onlineReply = await GeminiChat.ReplyAsync(current, profile, message, chatLifetime.Token);
+            string? onlineReply = await GeminiChat.ReplyAsync(current, profile, message, history.ToArray(), chatLifetime.Token);
             if (isClosed)
                 return;
 
@@ -335,6 +361,10 @@ public partial class MainWindow : Window
                 SendButton.IsEnabled = true;
         }
 
+        history.Add(new ChatTurn("user", message));
+        history.Add(new ChatTurn("model", reply));
+        if (history.Count > 12)
+            history.RemoveRange(0, history.Count - 12);
         ShowReply(profile, reply);
     }
 
@@ -449,10 +479,5 @@ public partial class MainWindow : Window
         voiceVolume = null;
     }
 
-    private static string GetModeName(ChatMode option) => option switch
-    {
-        ChatMode.Tarot => "Tarot",
-        ChatMode.Comedy => "Comedia",
-        _ => "Estudiante"
-    };
+    private static string GetModeName(ChatMode option) => Responses.Name(option);
 }

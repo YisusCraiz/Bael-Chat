@@ -32,8 +32,8 @@
             </TabItem>
             <TabItem Header="Chat · Gemini">
                 <StackPanel Margin="16">
-                    <CheckBox x:Name="OnlineChat" Content="Activar Gemini en Tarot y Comedia" Margin="0,0,0,10" />
-                    <TextBlock Text="Con Gemini activado, cada mensaje enviado en esos modos se comparte con Google. En caso de error, BAEL ofrece una respuesta local." TextWrapping="Wrap" />
+                    <CheckBox x:Name="OnlineChat" Content="Activar Gemini para las conversaciones" Margin="0,0,0,10" />
+                    <TextBlock Text="Con Gemini activado, cada mensaje enviado de conversación se comparte con Google. En caso de error, BAEL ofrece una respuesta local." TextWrapping="Wrap" />
                     <Label Target="{Binding ElementName=GeminiKey}" Content="Clave de Gemini" Padding="0,12,0,4" />
                     <PasswordBox x:Name="GeminiKey" Padding="6" />
                     <Label Target="{Binding ElementName=GeminiModel}" Content="Modelo" Padding="0,12,0,4" />
