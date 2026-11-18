@@ -16,6 +16,9 @@ public partial class App : Application
                 var window = new MainWindow();
                 window.VerifyStartup();
                 window.Close();
+                var companion = new DesktopWindow(testMode: true);
+                companion.VerifyCompanion();
+                companion.Close();
                 File.WriteAllText(resultPath, "OK");
                 Shutdown(0);
             }
@@ -28,7 +31,8 @@ public partial class App : Application
             return;
         }
 
-        MainWindow = new MainWindow();
+        ShutdownMode = ShutdownMode.OnMainWindowClose;
+        MainWindow = new DesktopWindow();
         MainWindow.Show();
     }
 }

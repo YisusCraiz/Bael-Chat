@@ -15,6 +15,25 @@ namespace Bael;
 
 public partial class MainWindow : Window
 {
+    internal BaelSettings CurrentSettings => settings;
+    internal event Action? UserSpoke;
+    internal event Action<BaelSettings>? SettingsChanged;
+
+    internal void OpenConversation() => OpenChat(this, new RoutedEventArgs());
+
+    internal void EditSettings(Window owner)
+    {
+        var dialog = new SettingsWindow(settings, settingsUnreadable) { Owner = owner, Topmost = owner.Topmost };
+        dialog.LoadAudioDevices();
+        if (dialog.ShowDialog() == true)
+        {
+            settings = dialog.Settings;
+            settingsUnreadable = false;
+            ApplySettings();
+            SettingsChanged?.Invoke(settings);
+        }
+    }
+
     private readonly DispatcherTimer mascotTimer = new() { Interval = TimeSpan.FromSeconds(4) };
     private readonly MascotSprites sprites = new();
     private readonly DispatcherTimer spriteTimer = new();
@@ -50,7 +69,7 @@ public partial class MainWindow : Window
         };
         spriteTimer.Tick += AdvanceSprite;
         mascotTimer.Tick += AnimateMascot;
-        mascotTimer.Start();
+
         Closed += (_, _) =>
         {
             isClosed = true;
@@ -224,6 +243,7 @@ public partial class MainWindow : Window
     {
         Chat.Visibility = Visibility.Collapsed;
         SettingsGear.Visibility = Visibility.Collapsed;
+        if (IsVisible) Hide();
         clickCount = 0;
         MascotButton.Focus();
     }
@@ -261,14 +281,7 @@ public partial class MainWindow : Window
     private void OpenSettings(object sender, RoutedEventArgs e)
     {
         clickCount = 0;
-        var dialog = new SettingsWindow(settings, settingsUnreadable) { Owner = this, Topmost = Topmost };
-        dialog.LoadAudioDevices();
-        if (dialog.ShowDialog() == true)
-        {
-            settings = dialog.Settings;
-            settingsUnreadable = false;
-            ApplySettings();
-        }
+        EditSettings(this);
     }
 
     private async void SendMessage(object sender, RoutedEventArgs e)
@@ -277,6 +290,7 @@ public partial class MainWindow : Window
         if (message.Length == 0 || !SendButton.IsEnabled)
             return;
 
+        UserSpoke?.Invoke();
         ChatMode profile = mode;
         BaelSettings current = settings;
         AddUserMessage(message);

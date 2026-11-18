@@ -2,9 +2,9 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="BAEL" Width="440" MinWidth="360" SizeToContent="Height"
-        Topmost="True" WindowStartupLocation="CenterScreen">
+        Topmost="True" WindowStartupLocation="Manual">
     <StackPanel Margin="20">
-        <Button x:Name="MascotButton" HorizontalAlignment="Center" Padding="18,10"
+        <Button Visibility="Collapsed" x:Name="MascotButton" HorizontalAlignment="Center" Padding="18,10"
                 Click="OpenChat" AutomationProperties.Name="BAEL"
                 AutomationProperties.HelpText="Un clic abre el chat. Tres clics rápidos abren los modos.">
             <Button.RenderTransform>
@@ -42,12 +42,14 @@
                 <TextBlock Text="BAEL" HorizontalAlignment="Center" FontWeight="SemiBold" />
             </StackPanel>
         </Button>
+        <StackPanel Visibility="Collapsed">
         <Button x:Name="SettingsGear" Content="⚙ Ajustes" HorizontalAlignment="Center"
                 Visibility="Collapsed" Margin="0,8,0,0" Padding="10,4" Click="OpenSettings">
             <Button.RenderTransform>
                 <TranslateTransform x:Name="GearOffset" />
             </Button.RenderTransform>
         </Button>
+        </StackPanel>
         <StackPanel x:Name="Chat" Margin="0,12,0,0" Visibility="Collapsed">
             <DockPanel Margin="0,0,0,8">
                 <Button DockPanel.Dock="Right" Content="Ocultar chat"

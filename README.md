@@ -15,16 +15,17 @@ Aplicación de escritorio para Windows desarrollada en C# y WPF.
 2. Abre la compilación exitosa más reciente y descarga **BAEL-Windows-x64** desde **Artifacts**.
 3. Extrae todo el ZIP y abre `Bael.exe` en Windows x64. El paquete incluye el runtime de .NET.
 
-## Probar el prototipo
+## Mascota sobre el escritorio
 
-- Con el chat oculto y el cursor fuera de la mascota, espera unos segundos para verla caminar dentro de la ventana. Cuando abres el chat se detiene. El parpadeo de reposo continúa con el chat abierto.
-- Pulsa la mascota **BAEL** una vez para abrir el chat. La mascota parpadea al pulsarla. Usa **Ocultar chat** para plegarlo y conserva la conversación abierta al volver.
-- Pulsa **BAEL** tres veces seguidas en un segundo para abrir el selector. Elige Tarot o Comedia, escribe un mensaje y pulsa **Enviar** o **Enter**.
-- Elige **Estudiante** en el selector para volver al modo inicial. Las respuestas de Tarot y Comedia son de muestra.
+BAEL inicia como chico chibi con fondo transparente. Arrástralo para colocarlo dentro del escritorio principal. Acerca el cursor al personaje para mostrar los botones de Chat, Ajustes y Salir. El engrane está encima del sprite y abre una ventana flotante. Un clic en el personaje abre el chat; cerrar el chat lo oculta y conserva la conversación durante la sesión. Para salir usa × encima del personaje.
+
+Tras 30 segundos sin interacción, el chico se viste de unicornio con una transformación mágica y camina por el escritorio. Abrir el chat descubre su cabeza. Cuatro mensajes enviados en un minuto retiran el resto del disfraz. El chat abierto, el cursor sobre la mascota o los ajustes abiertos pausan el tiempo de inactividad. Estos tiempos se ajustan desde General. Hablar corresponde a mensajes escritos en el chat.
+
+Los PNG incluidos están organizados en `src/Bael/Sprites/desktop`: `boy` (polo gris), `headless` (cabeza descubierta), `unicorn` (disfraz completo) y `magic` (transformación), cuatro fotogramas por grupo. Se copian automáticamente al compilar y publicar.
 
 ## Comprobación en GitHub
 
-Antes de publicar el ZIP, GitHub Actions inicializa la ventana de BAEL en Windows, ejecuta los manejadores del chat con Tarot y Comedia y comprueba que la conversación siga presente al ocultar y reabrir el panel. Para la revisión visual, prueba también los tres clics, las animaciones y la voz en tu PC.
+Antes de publicar el ZIP, GitHub Actions inicializa la ventana de BAEL en Windows, ejecuta los manejadores del chat con Tarot y Comedia y comprueba que la conversación siga presente al ocultar y reabrir el panel. También comprueba la transparencia y carga de las cuatro secuencias de sprites y la respuesta del vestuario a la conversación. Para la revisión visual, prueba las animaciones, el arrastre y la voz en tu PC.
 
 ## Trabajar en equipo
 

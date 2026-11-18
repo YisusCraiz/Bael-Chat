@@ -23,6 +23,8 @@ public partial class SettingsWindow : Window
         Settings = settings;
         PinWindow.IsChecked = settings.Topmost;
         AllowWalking.IsChecked = settings.Walk;
+        IdleDelay.Value = Math.Clamp(settings.IdleSeconds, 10, 300);
+        MessageThreshold.Value = Math.Clamp(settings.MessagesToUndress, 2, 10);
         Volume.Value = settings.Volume * 100;
         OnlineChat.IsChecked = settings.OnlineChat;
         GeminiKey.Password = settings.GeminiKey;
@@ -138,6 +140,8 @@ public partial class SettingsWindow : Window
         var updated = new BaelSettings
         {
             Topmost = PinWindow.IsChecked == true,
+            IdleSeconds = (int)IdleDelay.Value,
+            MessagesToUndress = (int)MessageThreshold.Value,
             Walk = AllowWalking.IsChecked == true,
             Volume = Volume.Value / 100,
             OnlineChat = OnlineChat.IsChecked == true,

@@ -10,6 +10,8 @@ internal sealed record BaelSettings
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BAEL", "settings.dat");
 
     public bool Topmost { get; init; } = true;
+    public int IdleSeconds { get; init; } = 30;
+    public int MessagesToUndress { get; init; } = 4;
     public bool Walk { get; init; } = true;
     public double Volume { get; init; } = 0.8;
     public bool OnlineChat { get; init; }

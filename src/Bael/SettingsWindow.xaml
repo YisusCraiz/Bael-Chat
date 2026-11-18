@@ -17,6 +17,12 @@
                 <StackPanel Margin="16">
                     <CheckBox x:Name="PinWindow" Content="Mantener BAEL encima de otras ventanas" Margin="0,0,0,12" />
                     <CheckBox x:Name="AllowWalking" Content="Mover la mascota con el chat oculto" Margin="0,0,0,16" />
+                    <TextBlock Text="Segundos sin interacción antes del disfraz" Margin="0,0,0,4" />
+                    <Slider x:Name="IdleDelay" Minimum="10" Maximum="300" TickFrequency="10" IsSnapToTickEnabled="True" />
+                    <TextBlock Text="{Binding ElementName=IdleDelay, Path=Value, StringFormat={}{0:0} s}" Margin="0,0,0,8" />
+                    <TextBlock Text="Mensajes en un minuto para quitar el disfraz" />
+                    <Slider x:Name="MessageThreshold" Minimum="2" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True" />
+                    <TextBlock Text="{Binding ElementName=MessageThreshold, Path=Value, StringFormat={}{0:0} mensajes}" Margin="0,0,0,8" />
                     <Label Target="{Binding ElementName=Volume}" Content="Volumen de la voz" Padding="0,0,0,4" />
                     <Slider x:Name="Volume" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" />
                     <TextBlock Text="{Binding ElementName=Volume, Path=Value, StringFormat={}{0:0}%}" />
