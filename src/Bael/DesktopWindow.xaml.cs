@@ -331,6 +331,8 @@ public partial class DesktopWindow : Window
             var button = new Button
             {
                 Width = 78, Height = 78, Content = content,
+                Foreground = new SolidColorBrush(Color.FromRgb(80, 59, 145)),
+                Margin = new Thickness(0),
                 Cursor = Cursors.Hand,
                 Template = new ControlTemplate(typeof(Button)) { VisualTree = circle }
             };
