@@ -65,7 +65,7 @@
                         <ComboBox x:Name="PersonalityTone" />
                         <Label Target="{Binding ElementName=HumorLevel}" Content="Cantidad de humor" Padding="0,12,0,4" />
                         <Slider x:Name="HumorLevel" Minimum="0" Maximum="3" TickFrequency="1" IsSnapToTickEnabled="True" />
-                        <TextBlock Text="{Binding ElementName=HumorLevel, Path=Value, StringFormat={}{0:0} / 3 · 0 sin bromas, 3 muy bromista}" />
+                        <TextBlock Text="{Binding ElementName=HumorLevel, Path=Value, StringFormat={}{0:0} / 3 · 0 sin bromas · 3 muy bromista}" />
                         <Label Target="{Binding ElementName=PersonalityDetail}" Content="Extensión de las respuestas" Padding="0,12,0,4" />
                         <ComboBox x:Name="PersonalityDetail" />
                         <Label Target="{Binding ElementName=PersonalityAddress}" Content="Cómo quieres que te llame" Padding="0,12,0,4" />
