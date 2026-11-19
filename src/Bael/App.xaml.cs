@@ -19,6 +19,7 @@ public partial class App : Application
                 var companion = new DesktopWindow(testMode: true);
                 companion.VerifyCompanion();
                 companion.Close();
+                PdfLibrary.Verify();
                 await ChatRouterChecks.RunAsync();
                 File.WriteAllText(resultPath, "OK");
                 Shutdown(0);

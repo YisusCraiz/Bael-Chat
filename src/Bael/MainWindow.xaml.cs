@@ -27,7 +27,9 @@ public partial class MainWindow : Window
         mode = selected;
         ModeLabel.Text = $"Modo {Responses.Name(mode).ToLowerInvariant()}";
         ModeChanged?.Invoke(mode);
-        ChatStatus.Text = mode == ChatMode.System
+        ChatStatus.Text = settings.GetDocumentRule(mode).Limited
+            ? "Solo documentos · Consulta los PDF asignados en Ajustes."
+            : mode == ChatMode.System
             ? "Escribe diagnóstico para una revisión local básica."
             : mode == ChatMode.Math ? "Escribe el ejercicio y tu intento. Te guío con pistas."
             : mode == ChatMode.English ? "Pide presente, pasado, futuro o pronunciación." : "";
@@ -169,6 +171,27 @@ public partial class MainWindow : Window
         Message.Clear();
         Message.Focus();
         ChatStatus.Text = "";
+
+        if (current.GetDocumentRule(profile).Limited)
+        {
+            SendButton.IsEnabled = false;
+            ChatStatus.Text = "Buscando en tus PDF…";
+            try
+            {
+                string answer = await Task.Run(() => PdfLibrary.Answer(current, profile, message), chatLifetime.Token);
+                if (!isClosed)
+                {
+                    ShowReply(profile, answer);
+                    ChatStatus.Text = "Solo documentos · Pasajes del material seleccionado";
+                }
+            }
+            catch (OperationCanceledException) when (isClosed) { }
+            finally
+            {
+                if (!isClosed) SendButton.IsEnabled = true;
+            }
+            return;
+        }
 
         string reply = current.GetPersonality(profile).FormatLocal(profile, Responses.For(profile, message));
         if (profile == ChatMode.System &&

@@ -41,7 +41,7 @@ internal static class Responses
         ChatMode.System => "Eres BAEL en modo Sistema. Guía al usuario con una comprobación sencilla por turno para diagnosticar problemas de Windows. Pregunta el síntoma y el error. Solo conoces lo escrito en esta conversación. No afirmes haber examinado, ejecutado comandos o reparado la PC. Prioriza comprobaciones reversibles y explica su propósito.",
         ChatMode.Math => "Eres BAEL, tutor de matemáticas y álgebra. Ayuda al alumno a razonar: ofrece UNA pista o una pregunta por turno, revisa su intento y espera su siguiente paso. No resuelvas el ejercicio completo ni des el resultado final aunque te lo pidan. Explica el concepto y pide que el alumno haga el siguiente cálculo.",
         ChatMode.English => "Eres BAEL, tutor de inglés. Practica presente, pasado y futuro, verbos regulares e irregulares con un ejercicio breve por turno. Corrige el intento y explica en español. Para pronunciación ofrece una aproximación escrita y una frase corta para repetir. No afirmes escuchar o evaluar la voz del usuario. El botón de lectura permite escuchar tu respuesta.",
-        _ => "Eres BAEL, compañero estudiante. Ayuda a organizar el estudio y explicar conceptos en español. La consulta de PDF está pendiente: no inventes citas ni páginas."
+        _ => "Eres BAEL, compañero estudiante. Ayuda a organizar el estudio y explicar conceptos en español. La consulta restringida a PDF se configura en Ajustes → Documentos. En modo libre no inventes citas ni páginas."
     };
 
     public static string For(ChatMode mode, string message)
@@ -56,7 +56,7 @@ internal static class Responses
                 ? "Primero identifica qué operación acompaña a la incógnita. ¿Qué operación inversa puedes aplicar a ambos lados para empezar a despejarla? Escribe tu primer paso."
                 : "Dime el ejercicio y qué has intentado. Empezamos identificando los datos y lo que te pide encontrar; después te doy una pista para tu siguiente paso.",
             ChatMode.English => EnglishHelp(text),
-            _ => "¿Qué tema estás estudiando y qué parte te cuesta? Podemos organizar un plan y repasar el concepto. La consulta de PDF se añadirá más adelante."
+            _ => "¿Qué tema estás estudiando y qué parte te cuesta? Podemos organizar un plan y repasar el concepto. Puedes limitar este modo a tu material desde Ajustes → Documentos."
         };
     }
 

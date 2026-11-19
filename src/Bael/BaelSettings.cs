@@ -16,6 +16,12 @@ internal sealed record BaelSettings
     public double DanceThreshold { get; init; } = 0.03;
     public bool Walk { get; init; } = true;
     public double Volume { get; init; } = 0.8;
+    public List<PdfEntry> Documents { get; init; } = [];
+    public Dictionary<ChatMode, DocumentRule>? DocumentRules { get; init; }
+    public DocumentRule GetDocumentRule(ChatMode mode) =>
+        DocumentRules is not null && DocumentRules.TryGetValue(mode, out var rule)
+            ? rule : new DocumentRule { Limited = mode == ChatMode.Student };
+
     public bool OnlineChat { get; init; }
     public bool AutoFallback { get; init; } = true;
     public List<AiProfile>? Profiles { get; init; }

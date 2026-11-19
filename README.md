@@ -33,7 +33,7 @@ En el modo Estudiante, tras 30 segundos sin interacción, el chico se viste de u
 
 Estudiante es el modo inicial. Su disfraz de unicornio y sus transformaciones pertenecen a ese modo. Tarot, Comedia, Sistema, Matemáticas e Inglés tienen cuatro sprites propios: reposo, parpadeo y dos gestos de actividad. Los gestos aparecen al cambiar de modo o enviar un mensaje. También puedes cambiar de modo desde el chat.
 
-- **Estudiante:** organización y explicaciones de estudio. PDF pendiente.
+- **Estudiante:** organización y explicaciones de estudio. Material de estudio asignable desde Documentos.
 - **Tarot:** tirada ficticia y reflexión.
 - **Comedia:** humor del campus.
 - **Sistema:** preguntas para orientar problemas sencillos. Escribe diagnóstico para leer Windows, procesadores y espacio en discos locales. La información permanece local; los mensajes que envíes a Gemini siguen la configuración del chat.
@@ -59,7 +59,7 @@ Crea una rama desde `main` actualizado y abre un PR por tarea. Incluye qué camb
 
 Cada perfil recibe el mensaje como texto y devuelve la respuesta como texto. `Responses.cs` contiene los puntos de entrada de muestra para los dos perfiles. Mantén tu implementación en un archivo de tu módulo y conecta únicamente el método de tu perfil.
 
-La consulta de PDF y las citas por página quedan para una fase posterior.
+La biblioteca y las consultas por página están disponibles en Ajustes → Documentos.
 
 ## Ajustes de BAEL
 
@@ -119,3 +119,11 @@ En Ajustes → Personaje activa Bailar con el audio de la computadora. La opció
 BAEL consulta el medidor de salida predeterminado de Windows. Cuando el nivel supera el umbral, alterna poses, da saltitos y se balancea. El umbral se puede bajar para música suave. Tras aproximadamente un segundo de silencio vuelve al reposo o a caminar. Al abrir la rueda, arrastrarlo o usar Ajustes se pausa el baile.
 
 El medidor se vuelve a conectar periódicamente para seguir los cambios de audífonos o altavoces predeterminados. La detección usa solo el nivel local, sin guardar ni enviar audio. Cualquier sonido reproducido por esa salida puede activar el efecto, incluida la voz de BAEL.
+
+## Biblioteca de PDF y límites por modo
+
+Abre Ajustes → Documentos y pulsa Añadir PDF. Puedes importar varios archivos con texto seleccionable. Cada archivo muestra su nombre y número de páginas. Elige un modo, activa Limitar este modo solo a sus PDF seleccionados y selecciona los archivos permitidos. Guarda para aplicar. Estudiante empieza limitado a documentos; los otros modos empiezan libres.
+
+En los modos limitados, BAEL busca términos de la pregunta en el texto extraído y muestra hasta tres pasajes con el nombre del PDF y la página. La consulta funciona localmente y no envía documentos a las APIs. Si falta material o no hay coincidencias suficientes, lo indica. Esta primera versión usa pasajes citados, sin síntesis generativa. Las búsquedas por sinónimos pueden requerir reformular la pregunta.
+
+Los PDF escaneados sin texto necesitan OCR antes de importarse. Los archivos protegidos o dañados muestran un aviso. Las copias y el índice por página se guardan en el perfil local de Windows. Cancelar los ajustes descarta los archivos nuevos preparados y las asignaciones sin guardar. Quitar de la biblioteca elimina la copia local al guardar y conserva el original.

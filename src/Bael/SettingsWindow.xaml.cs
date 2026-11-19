@@ -1,4 +1,5 @@
 using System.IO;
+using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Security.Cryptography;
@@ -25,6 +26,15 @@ public partial class SettingsWindow : Window
     private ChatMode? editingPersonality;
     private bool loadingPersonality;
 
+    private readonly ObservableCollection<PdfEntry> documents = new();
+    private readonly Dictionary<ChatMode, DocumentRule> documentRules = new();
+    private readonly List<string> importedDocuments = new();
+    private readonly HashSet<string> removedDocuments = new();
+    private readonly CancellationTokenSource importLifetime = new();
+    private ChatMode? editingDocumentMode;
+    private bool documentsClosed;
+    private bool importing;
+
     internal BaelSettings Settings { get; private set; }
 
     internal SettingsWindow(BaelSettings settings, bool unreadable)
@@ -39,6 +49,19 @@ public partial class SettingsWindow : Window
             PersonalityMode.Items.Add(Responses.Name(mode));
         }
         PersonalityMode.SelectedIndex = 0;
+        PdfLibraryList.ItemsSource = documents;
+        ModePdfList.ItemsSource = documents;
+        foreach (PdfEntry document in settings.Documents)
+            documents.Add(document);
+        foreach (ChatMode mode in Enum.GetValues<ChatMode>())
+        {
+            documentRules[mode] = settings.GetDocumentRule(mode) with
+            {
+                DocumentIds = settings.GetDocumentRule(mode).DocumentIds.ToList()
+            };
+            DocumentMode.Items.Add(Responses.Name(mode));
+        }
+        DocumentMode.SelectedIndex = 0;
         PinWindow.IsChecked = settings.Topmost;
         AllowWalking.IsChecked = settings.Walk;
         DanceWithAudio.IsChecked = settings.DanceWithAudio;
@@ -56,7 +79,15 @@ public partial class SettingsWindow : Window
         ProfileEditor.IsEnabled = profiles.Count > 0;
         VoiceKey.Password = settings.VoiceKey;
         VoiceId.Text = settings.VoiceId;
-        Closed += (_, _) => StopMicTest();
+        Closed += (_, _) =>
+        {
+            StopMicTest();
+            documentsClosed = true;
+            importLifetime.Cancel();
+            importLifetime.Dispose();
+            if (DialogResult != true)
+                foreach (string id in importedDocuments) PdfLibrary.Remove(id);
+        };
         meterTimer.Tick += (_, _) =>
         {
             if (microphone is null)
@@ -74,6 +105,114 @@ public partial class SettingsWindow : Window
 
         if (unreadable)
             Status.Text = "No se pudo leer la configuración anterior. Guardar creará una nueva.";
+    }
+
+    private void StoreDocumentRule()
+    {
+        if (editingDocumentMode is not ChatMode mode)
+            return;
+        documentRules[mode] = new DocumentRule
+        {
+            Limited = LimitToPdf.IsChecked == true,
+            DocumentIds = ModePdfList.SelectedItems.Cast<PdfEntry>().Select(entry => entry.Id).ToList()
+        };
+    }
+
+    private void ChangeDocumentMode(object sender, SelectionChangedEventArgs e)
+    {
+        StoreDocumentRule();
+        if (DocumentMode.SelectedIndex < 0)
+            return;
+        editingDocumentMode = Enum.GetValues<ChatMode>()[DocumentMode.SelectedIndex];
+        LoadDocumentRule();
+    }
+
+    private void LoadDocumentRule()
+    {
+        if (editingDocumentMode is not ChatMode mode)
+            return;
+        DocumentRule rule = documentRules[mode];
+        LimitToPdf.IsChecked = rule.Limited;
+        ModePdfList.SelectedItems.Clear();
+        foreach (PdfEntry entry in documents.Where(entry => rule.DocumentIds.Contains(entry.Id)))
+            ModePdfList.SelectedItems.Add(entry);
+    }
+
+    private async void AddPdf(object sender, RoutedEventArgs e)
+    {
+        if (importing) return;
+        var picker = new OpenFileDialog
+        {
+            Title = "Añadir material de consulta",
+            Filter = "Documentos PDF (*.pdf)|*.pdf",
+            Multiselect = true
+        };
+        if (picker.ShowDialog(this) != true) return;
+
+        importing = true;
+        SaveSettingsButton.IsEnabled = false;
+        AddPdfButton.IsEnabled = false;
+        RemovePdfButton.IsEnabled = false;
+        CancellationToken token = importLifetime.Token;
+        var failures = new List<string>();
+        int count = 0;
+        try
+        {
+            foreach (string path in picker.FileNames)
+            {
+                PdfImportStatus.Text = $"Leyendo {Path.GetFileName(path)}…";
+                try
+                {
+                    PdfEntry entry = await Task.Run(() => PdfLibrary.Import(path, token), token);
+                    if (documentsClosed)
+                    {
+                        PdfLibrary.Remove(entry.Id);
+                        return;
+                    }
+                    StoreDocumentRule();
+                    importedDocuments.Add(entry.Id);
+                    documents.Add(entry);
+                    if (editingDocumentMode is ChatMode mode)
+                    {
+                        documentRules[mode].DocumentIds.Add(entry.Id);
+                        LoadDocumentRule();
+                    }
+                    count++;
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+                catch (Exception error)
+                {
+                    string reason = error is InvalidDataException ? error.Message
+                        : "No se pudo leer. Comprueba si tiene contraseña o está dañado.";
+                    failures.Add($"{Path.GetFileName(path)}: {reason}");
+                }
+            }
+            PdfImportStatus.Text = $"{count} PDF preparados. Guarda para conservarlos." +
+                (failures.Count == 0 ? "" : "\n" + string.Join("\n", failures));
+        }
+        finally
+        {
+            importing = false;
+            if (!documentsClosed)
+            {
+                SaveSettingsButton.IsEnabled = true;
+                AddPdfButton.IsEnabled = true;
+                RemovePdfButton.IsEnabled = true;
+            }
+        }
+    }
+
+    private void RemovePdf(object sender, RoutedEventArgs e)
+    {
+        if (PdfLibraryList.SelectedItem is not PdfEntry entry || importing)
+            return;
+        StoreDocumentRule();
+        documents.Remove(entry);
+        removedDocuments.Add(entry.Id);
+        foreach (var rule in documentRules.Values)
+            rule.DocumentIds.Remove(entry.Id);
+        LoadDocumentRule();
+        PdfImportStatus.Text = "Se quitará de la biblioteca al guardar. Tu archivo original se conserva.";
     }
 
     private void StorePersonality()
@@ -323,6 +462,8 @@ public partial class SettingsWindow : Window
 
     private void Save(object sender, RoutedEventArgs e)
     {
+        if (importing) return;
+        StoreDocumentRule();
         StorePersonality();
         StoreProfile();
         foreach (AiProfile profile in profiles)
@@ -349,6 +490,8 @@ public partial class SettingsWindow : Window
             AutoFallback = AutoFallback.IsChecked == true,
             Profiles = profiles.ToList(),
             Personalities = new Dictionary<ChatMode, ModePersonality>(personalities),
+            Documents = documents.ToList(),
+            DocumentRules = new Dictionary<ChatMode, DocumentRule>(documentRules),
             VoiceKey = VoiceKey.Password.Trim(),
             VoiceId = VoiceId.Text.Trim(),
             InputDeviceId = InputDevice.SelectedValue as string ?? Settings.InputDeviceId,
@@ -364,6 +507,7 @@ public partial class SettingsWindow : Window
         try
         {
             updated.Save();
+            foreach (string id in removedDocuments) PdfLibrary.Remove(id);
             Settings = updated;
             DialogResult = true;
         }

@@ -15,7 +15,7 @@
                        AutomationProperties.LiveSetting="Polite" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
                 <Button Content="Cancelar" Background="White" Foreground="#594C76" IsCancel="True" Padding="14,6" Margin="0,0,8,0" />
-                <Button Content="Guardar cambios" IsDefault="True" Click="Save" Padding="14,6" />
+                <Button x:Name="SaveSettingsButton" Content="Guardar cambios" IsDefault="True" Click="Save" Padding="14,6" />
             </StackPanel>
         </StackPanel>
         <TabControl TabStripPlacement="Left" Background="White" BorderBrush="#E5DFEF" Padding="10">
@@ -46,6 +46,33 @@
                     <Slider x:Name="Volume" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" />
                     <TextBlock Text="{Binding ElementName=Volume, Path=Value, StringFormat={}{0:0}%}" />
                 </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Documentos">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="18">
+                        <TextBlock Text="Tu material de consulta" FontSize="19" FontWeight="SemiBold" />
+                        <TextBlock Text="Añade PDF con texto seleccionable y elige en qué modos serán la única fuente."
+                                   TextWrapping="Wrap" Margin="0,8,0,12" />
+                        <WrapPanel>
+                            <Button x:Name="AddPdfButton" Content="+ Añadir PDF" Click="AddPdf" />
+                            <Button x:Name="RemovePdfButton" Content="Quitar de la biblioteca" Click="RemovePdf" />
+                        </WrapPanel>
+                        <ListBox x:Name="PdfLibraryList" DisplayMemberPath="Label" Height="100" Margin="0,6,0,10" />
+                        <TextBlock x:Name="PdfImportStatus" TextWrapping="Wrap" Foreground="#776C90"
+                                   AutomationProperties.LiveSetting="Polite" Margin="0,0,0,14" />
+                        <Label Target="{Binding ElementName=DocumentMode}" Content="Modo que quieres configurar" Padding="0,0,0,4" />
+                        <ComboBox x:Name="DocumentMode" SelectionChanged="ChangeDocumentMode" />
+                        <CheckBox x:Name="LimitToPdf" Content="Limitar este modo solo a sus PDF seleccionados" Margin="0,14,0,8" />
+                        <TextBlock Text="Desactivado: conversación libre. Activado: muestra pasajes del material con archivo y página. Si no encuentra respaldo, lo indica."
+                                   TextWrapping="Wrap" Margin="0,0,0,12" />
+                        <TextBlock Text="PDF permitidos para este modo" FontWeight="SemiBold" />
+                        <TextBlock Text="Selecciona varios con Ctrl + clic. Cada modo puede usar archivos distintos."
+                                   TextWrapping="Wrap" Margin="0,5,0,5" Foreground="#776C90" />
+                        <ListBox x:Name="ModePdfList" DisplayMemberPath="Label" SelectionMode="Multiple" Height="125" />
+                        <TextBlock Text="Los archivos se copian a tu biblioteca local al guardar. El modo limitado funciona sin API y busca por términos del documento. Los PDF escaneados necesitan OCR."
+                                   TextWrapping="Wrap" Margin="0,12,0,0" />
+                    </StackPanel>
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="Personalidades">
