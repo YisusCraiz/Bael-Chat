@@ -12,6 +12,8 @@ internal sealed record BaelSettings
     public bool Topmost { get; init; } = true;
     public int IdleSeconds { get; init; } = 30;
     public int MessagesToUndress { get; init; } = 4;
+    public bool DanceWithAudio { get; init; }
+    public double DanceThreshold { get; init; } = 0.03;
     public bool Walk { get; init; } = true;
     public double Volume { get; init; } = 0.8;
     public bool OnlineChat { get; init; }

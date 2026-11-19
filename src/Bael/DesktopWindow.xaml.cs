@@ -25,6 +25,9 @@ public partial class DesktopWindow : Window
     private int frame;
     private long lastActivity = Environment.TickCount64;
     private readonly WanderMotion motion = new();
+    private readonly OutputAudioMonitor audioMonitor = new();
+    private readonly DanceReaction danceReaction = new();
+    private bool dancing;
     private readonly DispatcherTimer movementTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private readonly DispatcherTimer bubbleTimer = new() { Interval = TimeSpan.FromMilliseconds(30) };
     private long movementTimestamp = Stopwatch.GetTimestamp();
@@ -86,6 +89,11 @@ public partial class DesktopWindow : Window
         {
             settings = updated;
             Topmost = settings.Topmost;
+            if (!settings.DanceWithAudio)
+            {
+                audioMonitor.Dispose();
+                dancing = danceReaction.Update(false, 0, settings.DanceThreshold, Environment.TickCount64);
+            }
         };
         chat.Closing += HideChat;
         Closed += (_, _) =>
@@ -93,6 +101,7 @@ public partial class DesktopWindow : Window
             closing = true;
             timer.Stop();
             movementTimer.Stop();
+            audioMonitor.Dispose();
             bubbleTimer.Stop();
             AnswerBubble.IsOpen = false;
             ModeWheel.IsOpen = false;
@@ -119,6 +128,7 @@ public partial class DesktopWindow : Window
             throw new InvalidOperationException("La conversación no retiró el disfraz.");
 
         WanderMotion.Verify();
+        DanceReaction.Verify();
         foreach (ChatMode mode in Enum.GetValues<ChatMode>())
         {
             ((Button)WheelCanvas.Children[Array.IndexOf(Enum.GetValues<ChatMode>(), mode)])
@@ -190,7 +200,11 @@ public partial class DesktopWindow : Window
     {
         long now = Environment.TickCount64;
         long idleDelay = Math.Clamp(settings.IdleSeconds, 10, 300) * 1000L;
-        bool paused = IsMouseOver || dragStart is not null || settingsOpen || chat.IsVisible || ModeWheel.IsOpen || AnswerBubble.IsOpen;
+        bool interacting = IsMouseOver || dragStart is not null || settingsOpen || ModeWheel.IsOpen;
+        float level = settings.DanceWithAudio ? audioMonitor.ReadLevel(now) : 0;
+        dancing = danceReaction.Update(settings.DanceWithAudio && !interacting && transition is null,
+            level, Math.Clamp(settings.DanceThreshold, 0.01, 0.30), now);
+        bool paused = interacting || dancing || chat.IsVisible || AnswerBubble.IsOpen;
         if (paused)
             lastActivity = now;
 
@@ -234,7 +248,7 @@ public partial class DesktopWindow : Window
         }
 
         bool walking = motion.IsMoving;
-        int pose = walking || (selectedMode != ChatMode.Student && now < actionUntil)
+        int pose = dancing || walking || (selectedMode != ChatMode.Student && now < actionUntil)
             ? 2 + (frame / 3 % 2) : (frame % 45 >= 42 ? 1 : 0);
         Character.Source = frames[outfit][pose];
         frame = (frame + 1) % 900;
@@ -245,7 +259,7 @@ public partial class DesktopWindow : Window
         double seconds = Stopwatch.GetElapsedTime(movementTimestamp).TotalSeconds;
         movementTimestamp = Stopwatch.GetTimestamp();
         bool paused = !settings.Walk || IsMouseOver || dragStart is not null || settingsOpen
-            || chat.IsVisible || ModeWheel.IsOpen || AnswerBubble.IsOpen || transition is not null;
+            || chat.IsVisible || ModeWheel.IsOpen || AnswerBubble.IsOpen || transition is not null || dancing;
         if (paused)
             motion.Stop();
         else
@@ -257,9 +271,11 @@ public partial class DesktopWindow : Window
             Top = next.Y;
         }
 
-        double phase = Environment.TickCount64 / (motion.IsMoving ? 100.0 : 600.0);
-        BodyBob.Y = Math.Sin(phase) * (motion.IsMoving ? 2.4 : 0.8);
-        BodyTilt.Angle = motion.IsMoving ? Math.Sin(phase) * 1.8 : 0;
+        double phase = Environment.TickCount64 / (dancing ? 120.0 : motion.IsMoving ? 100.0 : 600.0);
+        BodyBob.Y = dancing ? -Math.Abs(Math.Sin(phase)) * 9 : Math.Sin(phase) * (motion.IsMoving ? 2.4 : 0.8);
+        BodyBob.X = dancing ? Math.Sin(phase * 0.5) * 5 : 0;
+        BodyTilt.Angle = dancing ? Math.Sin(phase * 0.5) * 8 : motion.IsMoving ? Math.Sin(phase) * 1.8 : 0;
+        Facing.ScaleY = dancing ? 1 + Math.Sin(phase) * 0.025 : 1;
         if (Math.Abs(motion.HorizontalSpeed) > 5)
             Facing.ScaleX = motion.HorizontalSpeed < 0 ? -1 : 1;
     }

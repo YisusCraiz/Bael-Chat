@@ -24,6 +24,18 @@
                 <StackPanel Margin="16">
                     <CheckBox x:Name="PinWindow" Content="Mantener BAEL encima de otras ventanas" Margin="0,0,0,12" />
                     <CheckBox x:Name="AllowWalking" Content="Mover la mascota con el chat oculto" Margin="0,0,0,16" />
+                    <Border Background="#F1ECFA" CornerRadius="12" Padding="12" Margin="0,0,0,16">
+                        <StackPanel>
+                            <CheckBox x:Name="DanceWithAudio" Content="Bailar con el audio de la computadora" />
+                            <TextBlock Text="Reacciona al nivel del sonido que sale por el dispositivo predeterminado de Windows, como música, videos o avisos."
+                                       TextWrapping="Wrap" Margin="0,7,0,8" />
+                            <Label Target="{Binding ElementName=DanceThreshold}" Content="Volumen mínimo para empezar a bailar" Padding="0,0,0,4" />
+                            <Slider x:Name="DanceThreshold" Minimum="1" Maximum="30" TickFrequency="1" IsSnapToTickEnabled="True" />
+                            <TextBlock Text="{Binding ElementName=DanceThreshold, Path=Value, StringFormat={}{0:0}%}" />
+                            <TextBlock Text="Baja el umbral si la música suena suave. La detección es local y solo consulta el nivel de salida."
+                                       TextWrapping="Wrap" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </Border>
                     <TextBlock Text="Segundos sin interacción antes del disfraz" Margin="0,0,0,4" />
                     <Slider x:Name="IdleDelay" Minimum="10" Maximum="300" TickFrequency="10" IsSnapToTickEnabled="True" />
                     <TextBlock Text="{Binding ElementName=IdleDelay, Path=Value, StringFormat={}{0:0} s}" Margin="0,0,0,8" />

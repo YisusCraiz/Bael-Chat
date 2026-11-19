@@ -41,6 +41,8 @@ public partial class SettingsWindow : Window
         PersonalityMode.SelectedIndex = 0;
         PinWindow.IsChecked = settings.Topmost;
         AllowWalking.IsChecked = settings.Walk;
+        DanceWithAudio.IsChecked = settings.DanceWithAudio;
+        DanceThreshold.Value = Math.Clamp(settings.DanceThreshold * 100, 1, 30);
         IdleDelay.Value = Math.Clamp(settings.IdleSeconds, 10, 300);
         MessageThreshold.Value = Math.Clamp(settings.MessagesToUndress, 2, 10);
         Volume.Value = settings.Volume * 100;
@@ -340,6 +342,8 @@ public partial class SettingsWindow : Window
             IdleSeconds = (int)IdleDelay.Value,
             MessagesToUndress = (int)MessageThreshold.Value,
             Walk = AllowWalking.IsChecked == true,
+            DanceWithAudio = DanceWithAudio.IsChecked == true,
+            DanceThreshold = DanceThreshold.Value / 100,
             Volume = Volume.Value / 100,
             OnlineChat = OnlineChat.IsChecked == true,
             AutoFallback = AutoFallback.IsChecked == true,

@@ -111,3 +111,11 @@ Todos los modos pueden recorrer el área útil de la pantalla principal con tray
 Elegir un modo en la rueda cambia el personaje y mantiene el chat oculto. Pulsa el sprite cuando quieras conversar. El chat admite Enter para enviar y Shift + Enter para una línea nueva, muestra mensajes en tarjetas y permite copiar la última respuesta. Junto al personaje aparece una burbuja de hasta 180 caracteres con escritura progresiva. Ver conversación abre el texto completo.
 
 El ejecutable y los accesos directos se llaman BAEL-UMAN y usan el unicornio como icono.
+
+## Bailar con el audio
+
+En Ajustes → Personaje activa Bailar con el audio de la computadora. La opción empieza desactivada y se guarda por usuario. Funciona en los seis modos y con las formas del unicornio.
+
+BAEL consulta el medidor de salida predeterminado de Windows. Cuando el nivel supera el umbral, alterna poses, da saltitos y se balancea. El umbral se puede bajar para música suave. Tras aproximadamente un segundo de silencio vuelve al reposo o a caminar. Al abrir la rueda, arrastrarlo o usar Ajustes se pausa el baile.
+
+El medidor se vuelve a conectar periódicamente para seguir los cambios de audífonos o altavoces predeterminados. La detección usa solo el nivel local, sin guardar ni enviar audio. Cualquier sonido reproducido por esa salida puede activar el efecto, incluida la voz de BAEL.
