@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.IO;
+using System.Diagnostics;
+using System.Windows.Media.Animation;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -22,7 +24,13 @@ public partial class DesktopWindow : Window
     private string? transition;
     private int frame;
     private long lastActivity = Environment.TickCount64;
-    private int direction = 1;
+    private readonly WanderMotion motion = new();
+    private readonly DispatcherTimer movementTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
+    private readonly DispatcherTimer bubbleTimer = new() { Interval = TimeSpan.FromMilliseconds(30) };
+    private long movementTimestamp = Stopwatch.GetTimestamp();
+    private string bubbleReply = "";
+    private int bubbleCharacters;
+    private long bubbleExpires;
     private Point? dragStart;
     private bool dragged;
     private bool closing;
@@ -55,11 +63,18 @@ public partial class DesktopWindow : Window
             Left = SystemParameters.WorkArea.Right - Width - 30;
             Top = SystemParameters.WorkArea.Bottom - Height;
             timer.Start();
+            movementTimestamp = Stopwatch.GetTimestamp();
+            movementTimer.Start();
         };
         timer.Tick += Tick;
+        movementTimer.Tick += MoveFreely;
+        bubbleTimer.Tick += WriteBubble;
+        chat.ReplyReady += ShowBubble;
         chat.UserSpoke += OnMessage;
         chat.ModeChanged += selected =>
         {
+            AnswerBubble.IsOpen = false;
+            bubbleTimer.Stop();
             selectedMode = selected;
             transition = null;
             messages.Clear();
@@ -77,6 +92,10 @@ public partial class DesktopWindow : Window
         {
             closing = true;
             timer.Stop();
+            movementTimer.Stop();
+            bubbleTimer.Stop();
+            AnswerBubble.IsOpen = false;
+            ModeWheel.IsOpen = false;
             chat.Close();
             if (!testMode)
                 Application.Current.Shutdown();
@@ -99,15 +118,23 @@ public partial class DesktopWindow : Window
         if (outfit != "boy")
             throw new InvalidOperationException("La conversación no retiró el disfraz.");
 
+        WanderMotion.Verify();
         foreach (ChatMode mode in Enum.GetValues<ChatMode>())
         {
-            chat.SelectMode(mode);
-            if (outfit != Responses.Sprite(mode) || selectedMode != mode)
+            ((Button)WheelCanvas.Children[Array.IndexOf(Enum.GetValues<ChatMode>(), mode)])
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            if (outfit != Responses.Sprite(mode) || selectedMode != mode || chat.IsVisible)
                 throw new InvalidOperationException("La selección del modo no cambió el sprite.");
             if (string.IsNullOrWhiteSpace(Responses.For(mode, "prueba")))
                 throw new InvalidOperationException("El modo no tiene respuesta local.");
         }
         chat.SelectMode(ChatMode.Student);
+        ShowBubble(ChatMode.Student, new string('a', 400));
+        WriteBubble(this, EventArgs.Empty);
+        if (bubbleReply.Length > 180 || BubbleText.Text.Length == 0 || !AnswerBubble.IsOpen)
+            throw new InvalidOperationException("La burbuja no mostró el fragmento de respuesta.");
+        AnswerBubble.IsOpen = false;
+        bubbleTimer.Stop();
         if (WheelCanvas.Children.Count != 8)
             throw new InvalidOperationException("Faltan burbujas de la rueda.");
 
@@ -129,6 +156,7 @@ public partial class DesktopWindow : Window
         outfit = name;
         frame = 0;
         Character.Source = frames[name][0];
+        Character.BeginAnimation(OpacityProperty, new DoubleAnimation(0.35, 1, TimeSpan.FromMilliseconds(220)));
     }
 
     private void Interact()
@@ -163,7 +191,7 @@ public partial class DesktopWindow : Window
     {
         long now = Environment.TickCount64;
         long idleDelay = Math.Clamp(settings.IdleSeconds, 10, 300) * 1000L;
-        bool paused = IsMouseOver || dragStart is not null || settingsOpen || chat.IsVisible || ModeWheel.IsOpen;
+        bool paused = IsMouseOver || dragStart is not null || settingsOpen || chat.IsVisible || ModeWheel.IsOpen || AnswerBubble.IsOpen;
         if (paused)
             lastActivity = now;
 
@@ -206,20 +234,60 @@ public partial class DesktopWindow : Window
             return;
         }
 
-        bool walking = settings.Walk && !paused && outfit == "unicorn";
+        bool walking = motion.IsMoving;
         int pose = walking || (selectedMode != ChatMode.Student && now < actionUntil)
             ? 2 + (frame / 3 % 2) : (frame % 45 >= 42 ? 1 : 0);
         Character.Source = frames[outfit][pose];
         frame = (frame + 1) % 900;
-        if (walking)
+    }
+
+    private void MoveFreely(object? sender, EventArgs e)
+    {
+        double seconds = Stopwatch.GetElapsedTime(movementTimestamp).TotalSeconds;
+        movementTimestamp = Stopwatch.GetTimestamp();
+        bool paused = !settings.Walk || IsMouseOver || dragStart is not null || settingsOpen
+            || chat.IsVisible || ModeWheel.IsOpen || AnswerBubble.IsOpen || transition is not null;
+        if (paused)
+            motion.Stop();
+        else
         {
             Rect area = SystemParameters.WorkArea;
-            double next = Left + direction * 3;
-            if (next < area.Left || next > area.Right - Width)
-                direction = -direction;
-            Left = Math.Clamp(Left + direction * 3, area.Left, Math.Max(area.Left, area.Right - Width));
-            Top = Math.Clamp(Top, area.Top, Math.Max(area.Top, area.Bottom - Height));
+            var bounds = new Rect(area.Left, area.Top, Math.Max(0, area.Width - Width), Math.Max(0, area.Height - Height));
+            Point next = motion.Advance(new Point(Left, Top), bounds, seconds);
+            Left = next.X;
+            Top = next.Y;
         }
+
+        double phase = Environment.TickCount64 / (motion.IsMoving ? 100.0 : 600.0);
+        BodyBob.Y = Math.Sin(phase) * (motion.IsMoving ? 2.4 : 0.8);
+        BodyTilt.Angle = motion.IsMoving ? Math.Sin(phase) * 1.8 : 0;
+        if (Math.Abs(motion.HorizontalSpeed) > 5)
+            Facing.ScaleX = motion.HorizontalSpeed < 0 ? -1 : 1;
+    }
+
+    private void ShowBubble(ChatMode mode, string reply)
+    {
+        if (closing) return;
+        bubbleReply = reply.Length > 180 ? reply[..177] + "…" : reply;
+        bubbleCharacters = 0;
+        BubbleMode.Text = $"BAEL · {Responses.Name(mode)}";
+        BubbleText.Text = "";
+        bubbleExpires = Environment.TickCount64 + 14000;
+        actionUntil = Environment.TickCount64 + 2400;
+        AnswerBubble.IsOpen = true;
+        bubbleTimer.Start();
+    }
+
+    private void WriteBubble(object? sender, EventArgs e)
+    {
+        if (!AnswerBubble.IsOpen || Environment.TickCount64 > bubbleExpires)
+        {
+            AnswerBubble.IsOpen = false;
+            bubbleTimer.Stop();
+            return;
+        }
+        bubbleCharacters = Math.Min(bubbleCharacters + 3, bubbleReply.Length);
+        BubbleText.Text = bubbleReply[..bubbleCharacters];
     }
 
     private void BuildWheel()
@@ -277,7 +345,7 @@ public partial class DesktopWindow : Window
                 if (slot < modes.Length)
                 {
                     chat.SelectMode(modes[slot]);
-                    ShowChat(button, args);
+                    chat.Hide();
                 }
                 else if (slot == 6)
                     ShowSettings(button, args);
@@ -352,13 +420,16 @@ public partial class DesktopWindow : Window
 
     private void ShowChat(object sender, RoutedEventArgs e)
     {
+        AnswerBubble.IsOpen = false;
+        bubbleTimer.Stop();
         Interact();
         chat.OpenConversation();
         if (!chat.IsVisible)
         {
             chat.Left = Math.Clamp(Left - chat.Width / 2, SystemParameters.WorkArea.Left,
                 Math.Max(SystemParameters.WorkArea.Left, SystemParameters.WorkArea.Right - chat.Width));
-            chat.Top = Math.Max(SystemParameters.WorkArea.Top, Top - 420);
+            chat.Top = Math.Clamp(Top - 420, SystemParameters.WorkArea.Top,
+                Math.Max(SystemParameters.WorkArea.Top, SystemParameters.WorkArea.Bottom - chat.Height));
             chat.Show();
         }
         chat.Activate();

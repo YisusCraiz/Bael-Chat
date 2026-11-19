@@ -4,12 +4,12 @@
 
 [Setup]
 AppId={{EF585152-8423-4800-8F95-F1B5A12E4619}
-AppName=BAEL
+AppName=BAEL-UMAN
 AppVersion={#AppVersion}
 AppPublisher=YisusCraiz
 AppPublisherURL=https://github.com/YisusCraiz/Bael-Chat
 DefaultDirName={localappdata}\Programs\BAEL
-DefaultGroupName=BAEL
+DefaultGroupName=BAEL-UMAN
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
@@ -20,7 +20,8 @@ OutputBaseFilename=BAEL-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-UninstallDisplayIcon={app}\Bael.exe
+SetupIconFile=..\src\Bael\Assets\bael-unicorn.ico
+UninstallDisplayIcon={app}\BAEL-UMAN.exe
 CloseApplications=yes
 SetupLogging=yes
 
@@ -31,12 +32,20 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "Crear un acceso directo en el escritorio"; Flags: unchecked
 
+[InstallDelete]
+Type: files; Name: "{app}\Bael.exe"
+Type: files; Name: "{app}\Bael.dll"
+Type: files; Name: "{app}\Bael.deps.json"
+Type: files; Name: "{app}\Bael.runtimeconfig.json"
+Type: files; Name: "{group}\BAEL.lnk"
+Type: files; Name: "{autodesktop}\BAEL.lnk"
+
 [Files]
 Source: "..\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\BAEL"; Filename: "{app}\Bael.exe"
-Name: "{autodesktop}\BAEL"; Filename: "{app}\Bael.exe"; Tasks: desktopicon
+Name: "{group}\BAEL-UMAN"; Filename: "{app}\BAEL-UMAN.exe"
+Name: "{autodesktop}\BAEL-UMAN"; Filename: "{app}\BAEL-UMAN.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\Bael.exe"; Description: "Abrir BAEL"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\BAEL-UMAN.exe"; Description: "Abrir BAEL-UMAN"; Flags: nowait postinstall skipifsilent

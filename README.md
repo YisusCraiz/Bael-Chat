@@ -1,4 +1,4 @@
-# BAEL
+# BAEL-UMAN
 
 Aplicación de escritorio para Windows desarrollada en C# y WPF.
 
@@ -21,7 +21,7 @@ Cada publicación en main genera una versión descargable cuando pasan la compil
 
 1. Inicia sesión en GitHub y abre [Compilar BAEL en Windows](https://github.com/YisusCraiz/Bael-Chat/actions/workflows/windows-build.yml).
 2. Abre la compilación exitosa más reciente y descarga **BAEL-Windows-x64** desde **Artifacts**.
-3. Extrae todo el ZIP y abre `Bael.exe` en Windows x64. El paquete incluye el runtime de .NET.
+3. Extrae todo el ZIP y abre `BAEL-UMAN.exe` en Windows x64. El paquete incluye el runtime de .NET.
 
 ## Mascota sobre el escritorio
 
@@ -93,7 +93,7 @@ Voz y audio permite guardar BAEL_ELEVENLABS_API_KEY y BAEL_ELEVENLABS_VOICE_ID m
 
 ## Usar sprites propios
 
-Coloca los PNG transparentes en `Sprites/idle/`, `Sprites/walk/` y `Sprites/react/`, junto a `Bael.exe`. Si trabajas desde Visual Studio, coloca esas carpetas dentro de `src/Bael/` y recompila. Usa el mismo tamaño y punto de apoyo en todos los fotogramas. Numéralos como `01.png`, `02.png` y `03.png` para que se reproduzcan en ese orden.
+Coloca los PNG transparentes en `Sprites/idle/`, `Sprites/walk/` y `Sprites/react/`, junto a `BAEL-UMAN.exe`. Si trabajas desde Visual Studio, coloca esas carpetas dentro de `src/Bael/` y recompila. Usa el mismo tamaño y punto de apoyo en todos los fotogramas. Numéralos como `01.png`, `02.png` y `03.png` para que se reproduzcan en ese orden.
 
 Reinicia BAEL para cargar los archivos. Reposo se repite, caminata se reproduce durante el desplazamiento y reacción se reproduce una vez al pulsar la mascota. Puedes empezar con una sola carpeta o con un solo PNG por estado. Sin sprites de reposo, BAEL muestra la mascota provisional cuando no hay un fotograma para el estado actual.
 
@@ -102,3 +102,12 @@ Reinicia BAEL para cargar los archivos. Reposo se repite, caminata se reproduce 
 Desde Ajustes → Personalidades elige Estudiante, Tarot, Comedia, Sistema, Matemáticas o Inglés. Cada uno empieza con un carácter distinto. Puedes cambiar tono, cantidad de humor (0–3), extensión, nombre de trato y preferencias libres de expresión. Hay un ejemplo local y un botón para restaurar solo el modo seleccionado. Guardar aplica los cambios y los conserva al reiniciar.
 
 Las APIs reciben la personalidad del modo junto con sus instrucciones de función, incluso después de un relevo. La guía local aplica tono, humor y nombre de trato; las preferencias libres y la adaptación completa de la extensión requieren IA en línea. La voz de ElevenLabs lee el texto resultante. Matemáticas conserva la instrucción de guiar con pistas y preguntas.
+
+
+## Movimiento y conversación
+
+Todos los modos pueden recorrer el área útil de la pantalla principal con trayectorias en dos dimensiones, aceleración suave, cambios de orientación y pausas. El movimiento se pausa al interactuar con el personaje, al abrir el chat o los ajustes y mientras se muestra una respuesta. La opción Mover la mascota permite detenerlo.
+
+Elegir un modo en la rueda cambia el personaje y mantiene el chat oculto. Pulsa el sprite cuando quieras conversar. El chat admite Enter para enviar y Shift + Enter para una línea nueva, muestra mensajes en tarjetas y permite copiar la última respuesta. Junto al personaje aparece una burbuja de hasta 180 caracteres con escritura progresiva. Ver conversación abre el texto completo.
+
+El ejecutable y los accesos directos se llaman BAEL-UMAN y usan el unicornio como icono.

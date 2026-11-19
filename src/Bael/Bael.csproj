@@ -3,10 +3,15 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>Assets/bael-unicorn.ico</ApplicationIcon>
+    <AssemblyName>BAEL-UMAN</AssemblyName>
+    <Product>BAEL-UMAN</Product>
+    <Title>BAEL-UMAN</Title>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <Resource Include="Assets/bael-unicorn.ico" />
     <None Update="Sprites/**/*.png" CopyToOutputDirectory="PreserveNewest"
           CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>

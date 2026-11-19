@@ -9,7 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Threading;
+using System.Windows.Input;
 
 namespace Bael;
 
@@ -17,6 +17,7 @@ public partial class MainWindow : Window
 {
     internal BaelSettings CurrentSettings => settings;
     internal event Action? UserSpoke;
+    internal event Action<ChatMode, string>? ReplyReady;
     internal event Action<ChatMode>? ModeChanged;
     private readonly ChatRouter router = new();
     private readonly Dictionary<ChatMode, List<ChatTurn>> histories = new();
@@ -33,7 +34,7 @@ public partial class MainWindow : Window
     }
     internal event Action<BaelSettings>? SettingsChanged;
 
-    internal void OpenConversation() => OpenChat(this, new RoutedEventArgs());
+    internal void OpenConversation() { Chat.Visibility = Visibility.Visible; Message.Focus(); }
 
     internal void EditSettings(Window owner)
     {
@@ -48,11 +49,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private readonly DispatcherTimer mascotTimer = new() { Interval = TimeSpan.FromSeconds(4) };
-    private readonly MascotSprites sprites = new();
-    private readonly DispatcherTimer spriteTimer = new();
-    private ImageSource[] activeFrames = [];
-    private int frameIndex;
     private BaelSettings settings;
     private bool settingsUnreadable;
     private readonly CancellationTokenSource chatLifetime = new();
@@ -64,33 +60,18 @@ public partial class MainWindow : Window
     private CancellationTokenSource? voiceRequest;
     private string? latestReply;
     private bool isClosed;
-    private double nextWalkPosition = 64;
     private ChatMode mode = ChatMode.Student;
-    private long firstClick;
-    private int clickCount;
 
     public MainWindow()
     {
         InitializeComponent();
         settings = BaelSettings.Load(out settingsUnreadable);
         ApplySettings();
-        PlaySprites(sprites.Idle, 180);
-        MascotButton.MouseEnter += (_, _) =>
-        {
-            if (activeFrames == sprites.Walk)
-                PlaySprites(sprites.Idle, 180);
-            StopWalking();
-        };
-        spriteTimer.Tick += AdvanceSprite;
-        mascotTimer.Tick += AnimateMascot;
-
         Closed += (_, _) =>
         {
             isClosed = true;
             chatLifetime.Cancel();
             chatLifetime.Dispose();
-            mascotTimer.Stop();
-            spriteTimer.Stop();
             voiceRequest?.Cancel();
             ReleaseAudio();
         };
@@ -99,8 +80,8 @@ public partial class MainWindow : Window
     internal void VerifyStartup()
     {
         var click = new RoutedEventArgs(Button.ClickEvent);
-        OpenChat(MascotButton, click);
-        if (Chat.Visibility != Visibility.Visible || SettingsGear.Visibility != Visibility.Visible)
+        OpenConversation();
+        if (Chat.Visibility != Visibility.Visible)
             throw new InvalidOperationException("El chat no abrió.");
 
         foreach (ChatMode profile in Enum.GetValues<ChatMode>())
@@ -117,149 +98,28 @@ public partial class MainWindow : Window
         var settingsWindow = new SettingsWindow(settings, settingsUnreadable);
         settingsWindow.Close();
 
-        HideChat(MascotButton, click);
-        if (SettingsGear.Visibility != Visibility.Collapsed)
-            throw new InvalidOperationException("El engrane quedó visible al ocultar el chat.");
-        OpenChat(MascotButton, click);
+        HideChat(this, click);
+        OpenConversation();
         if (Chat.Visibility != Visibility.Visible || Conversation.Items.Count != Enum.GetValues<ChatMode>().Length * 2)
             throw new InvalidOperationException("El chat perdió la conversación al volver a abrirlo.");
     }
 
-    private void OpenChat(object sender, RoutedEventArgs e)
+    private void HideChat(object sender, RoutedEventArgs e) => Hide();
+
+    private void MessageKey(object sender, KeyEventArgs e)
     {
-        Chat.Visibility = Visibility.Visible;
-        StopWalking();
-        if (SettingsGear.Visibility != Visibility.Visible)
+        if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
         {
-            SettingsGear.Visibility = Visibility.Visible;
-            GearOffset.X = MascotPosition.X;
-            GearOffset.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation
-            {
-                From = -12,
-                To = 0,
-                Duration = new Duration(TimeSpan.FromMilliseconds(180))
-            });
-        }
-        PlaySprites(sprites.React, 100);
-        Blink();
-
-        long now = Environment.TickCount64;
-        if (clickCount == 0 || now - firstClick > 1000)
-        {
-            firstClick = now;
-            clickCount = 0;
-        }
-
-        if (++clickCount == 3)
-        {
-            clickCount = 0;
-            OpenModes(sender, e);
+            e.Handled = true;
+            SendMessage(sender, e);
         }
     }
 
-    private void AnimateMascot(object? sender, EventArgs e)
+    private void CopyReply(object sender, RoutedEventArgs e)
     {
-        Blink();
-        if (!settings.Walk || Chat.Visibility == Visibility.Visible || MascotButton.IsMouseOver)
-            return;
-
-        PlaySprites(sprites.Walk, Math.Max(1, 960.0 / Math.Max(1, sprites.Walk.Length)));
-        var walkDuration = new Duration(TimeSpan.FromMilliseconds(960));
-        double destination = nextWalkPosition;
-        nextWalkPosition = -nextWalkPosition;
-
-        double start = MascotPosition.X;
-        MascotPosition.X = destination;
-        MascotPosition.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation
-        {
-            From = start,
-            To = destination,
-            Duration = walkDuration,
-            FillBehavior = FillBehavior.Stop
-        });
-
-        LeftFoot.BeginAnimation(TranslateTransform.YProperty, CreateSteps(-4));
-        RightFoot.BeginAnimation(TranslateTransform.YProperty, CreateSteps(4));
-    }
-
-    private void PlaySprites(ImageSource[] frames, double frameMilliseconds)
-    {
-        spriteTimer.Stop();
-        activeFrames = frames;
-        frameIndex = 0;
-
-        ImageSource? firstFrame = frames.FirstOrDefault();
-        if (firstFrame is null && frames != sprites.Idle)
-            firstFrame = sprites.Idle.FirstOrDefault();
-
-        MascotFrame.Source = firstFrame;
-        MascotFrame.Visibility = firstFrame is null ? Visibility.Collapsed : Visibility.Visible;
-        DefaultMascot.Visibility = firstFrame is null ? Visibility.Visible : Visibility.Collapsed;
-
-        if (frames.Length > 1 || (frames.Length == 1 && frames != sprites.Idle))
-        {
-            spriteTimer.Interval = TimeSpan.FromMilliseconds(frameMilliseconds);
-            spriteTimer.Start();
-        }
-        else if (frames.Length == 0 && frames != sprites.Idle)
-        {
-            PlaySprites(sprites.Idle, 180);
-        }
-    }
-
-    private void AdvanceSprite(object? sender, EventArgs e)
-    {
-        if (++frameIndex == activeFrames.Length)
-        {
-            if (activeFrames != sprites.Idle)
-            {
-                PlaySprites(sprites.Idle, 180);
-                return;
-            }
-
-            frameIndex = 0;
-        }
-
-        MascotFrame.Source = activeFrames[frameIndex];
-    }
-
-    private static DoubleAnimation CreateSteps(double stride) => new()
-    {
-        From = 0,
-        To = stride,
-        Duration = new Duration(TimeSpan.FromMilliseconds(120)),
-        AutoReverse = true,
-        RepeatBehavior = new RepeatBehavior(4),
-        FillBehavior = FillBehavior.Stop
-    };
-
-    private void StopWalking()
-    {
-        double position = MascotPosition.X;
-        MascotPosition.BeginAnimation(TranslateTransform.XProperty, null);
-        MascotPosition.X = position;
-        LeftFoot.BeginAnimation(TranslateTransform.YProperty, null);
-        RightFoot.BeginAnimation(TranslateTransform.YProperty, null);
-    }
-
-    private void Blink()
-    {
-        EyesScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation
-        {
-            To = 0.2,
-            Duration = new Duration(TimeSpan.FromMilliseconds(100)),
-            AutoReverse = true,
-            FillBehavior = FillBehavior.Stop
-        });
-    }
-
-    private void HideChat(object sender, RoutedEventArgs e)
-    {
-        Chat.Visibility = Visibility.Collapsed;
-        SettingsGear.Visibility = Visibility.Collapsed;
-        if (IsVisible) Hide();
-        clickCount = 0;
-        MascotButton.Focus();
+        if (latestReply is null) return;
+        try { Clipboard.SetText(latestReply); }
+        catch (System.Runtime.InteropServices.COMException) { ChatStatus.Text = "El portapapeles está ocupado. Intenta otra vez."; }
     }
 
     private void OpenModes(object sender, RoutedEventArgs e)
@@ -293,7 +153,6 @@ public partial class MainWindow : Window
 
     private void OpenSettings(object sender, RoutedEventArgs e)
     {
-        clickCount = 0;
         EditSettings(this);
     }
 
@@ -368,7 +227,7 @@ public partial class MainWindow : Window
 
     private void AddUserMessage(string message)
     {
-        string line = $"Tú: {message}";
+        var line = new ConversationLine("Tú", message, true);
         Conversation.Items.Add(line);
         Conversation.ScrollIntoView(line);
     }
@@ -377,9 +236,10 @@ public partial class MainWindow : Window
     {
         latestReply = reply;
         ReadAloudButton.IsEnabled = true;
-        string line = $"BAEL ({GetModeName(profile)}): {reply}";
+        var line = new ConversationLine($"BAEL · {GetModeName(profile)}", reply, false);
         Conversation.Items.Add(line);
         Conversation.ScrollIntoView(line);
+        ReplyReady?.Invoke(profile, reply);
     }
 
     private async void ReadAloud(object sender, RoutedEventArgs e)
@@ -478,4 +338,10 @@ public partial class MainWindow : Window
     }
 
     private static string GetModeName(ChatMode option) => Responses.Name(option);
+}
+
+internal sealed record ConversationLine(string Speaker, string Text, bool IsUser)
+{
+    public string Background => IsUser ? "#EBE4FA" : "#F4F3F8";
+    public Thickness Margin => IsUser ? new Thickness(38, 0, 0, 0) : new Thickness(0, 0, 38, 0);
 }

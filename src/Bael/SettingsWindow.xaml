@@ -1,29 +1,12 @@
 <Window x:Class="Bael.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Ajustes de BAEL" Width="860" Height="680" MinWidth="660" MinHeight="520"
+        Title="BAEL-UMAN · Ajustes" Icon="Assets/bael-unicorn.ico" Width="860" Height="680" MinWidth="660" MinHeight="520"
         Background="#F3F2F8" FontSize="13"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
-    <Window.Resources>
-        <Style TargetType="Button">
-            <Setter Property="Padding" Value="12,7" />
-            <Setter Property="Margin" Value="0,3,6,3" />
-            <Setter Property="Cursor" Value="Hand" />
-        </Style>
-        <Style TargetType="TextBox">
-            <Setter Property="Padding" Value="8,6" />
-        </Style>
-        <Style TargetType="PasswordBox">
-            <Setter Property="Padding" Value="8,6" />
-        </Style>
-        <Style TargetType="TabItem">
-            <Setter Property="Padding" Value="12,14" />
-            <Setter Property="HorizontalContentAlignment" Value="Left" />
-        </Style>
-    </Window.Resources>
     <DockPanel Margin="20">
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
-            <TextBlock Text="Haz que BAEL trabaje a tu manera" FontSize="22" FontWeight="SemiBold" Foreground="#352F59" />
+            <TextBlock Text="Tu compañero, a tu manera" FontSize="22" FontWeight="SemiBold" Foreground="#352F59" />
             <TextBlock Text="Elige una sección y guarda al terminar. Las claves se protegen en tu cuenta de Windows."
                        TextWrapping="Wrap" Margin="0,6,0,0" />
         </StackPanel>
@@ -31,11 +14,11 @@
             <TextBlock x:Name="Status" TextWrapping="Wrap" Foreground="#9B2929"
                        AutomationProperties.LiveSetting="Polite" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-                <Button Content="Cancelar" IsCancel="True" Padding="14,6" Margin="0,0,8,0" />
-                <Button Content="Guardar" IsDefault="True" Click="Save" Padding="14,6" />
+                <Button Content="Cancelar" Background="White" Foreground="#594C76" IsCancel="True" Padding="14,6" Margin="0,0,8,0" />
+                <Button Content="Guardar cambios" IsDefault="True" Click="Save" Padding="14,6" />
             </StackPanel>
         </StackPanel>
-        <TabControl TabStripPlacement="Left" Background="White" BorderBrush="#DDD9EB">
+        <TabControl TabStripPlacement="Left" Background="White" BorderBrush="#E5DFEF" Padding="10">
             <TabItem Header="Personaje">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="16">

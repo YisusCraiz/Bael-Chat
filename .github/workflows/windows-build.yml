@@ -26,7 +26,7 @@ jobs:
         run: |
           $result = Join-Path $env:RUNNER_TEMP "bael-smoke.txt"
           Remove-Item -LiteralPath $result -ErrorAction SilentlyContinue
-          $process = Start-Process -FilePath "./publish/Bael.exe" -ArgumentList "--smoke-test", ('"' + $result + '"') -PassThru
+          $process = Start-Process -FilePath "./publish/BAEL-UMAN.exe" -ArgumentList "--smoke-test", ('"' + $result + '"') -PassThru
           if (!$process.WaitForExit(30000)) {
             Stop-Process -Id $process.Id -ErrorAction SilentlyContinue
             throw "BAEL no terminó la prueba de arranque en 30 segundos."
@@ -57,14 +57,14 @@ jobs:
           if (!$setup.WaitForExit(120000)) { Stop-Process $setup.Id; throw "La instalación no terminó." }
           if ($setup.ExitCode -ne 0) { throw "Falló la instalación: $($setup.ExitCode)" }
           $result = Join-Path $env:RUNNER_TEMP "bael-installed-smoke.txt"
-          $app = Start-Process (Join-Path $target "Bael.exe") -ArgumentList '--smoke-test', ('"' + $result + '"') -PassThru
+          $app = Start-Process (Join-Path $target "BAEL-UMAN.exe") -ArgumentList '--smoke-test', ('"' + $result + '"') -PassThru
           if (!$app.WaitForExit(30000)) { Stop-Process $app.Id; throw "La aplicación instalada no terminó la prueba." }
           if ($app.ExitCode -ne 0 -or !(Test-Path $result) -or (Get-Content $result -Raw).Trim() -ne "OK") {
             throw "La aplicación instalada no pasó la prueba."
           }
           $uninstall = Start-Process (Join-Path $target "unins000.exe") -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -PassThru
           if (!$uninstall.WaitForExit(60000)) { Stop-Process $uninstall.Id; throw "La desinstalación no terminó." }
-          if ($uninstall.ExitCode -ne 0 -or (Test-Path (Join-Path $target "Bael.exe"))) {
+          if ($uninstall.ExitCode -ne 0 -or (Test-Path (Join-Path $target "BAEL-UMAN.exe"))) {
             throw "La desinstalación no retiró la aplicación."
           }
       - name: Guardar instalador
