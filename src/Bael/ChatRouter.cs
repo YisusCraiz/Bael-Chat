@@ -43,7 +43,7 @@ internal sealed class ChatRouter
             try
             {
                 progress?.Report($"Consultando {profile.Label}…");
-                using HttpRequestMessage request = BuildRequest(profile, mode, message, history);
+                using HttpRequestMessage request = BuildRequest(profile, mode, message, history, settings.GetPersonality(mode));
                 using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
                 if (!response.IsSuccessStatusCode)
                 {
@@ -98,9 +98,9 @@ internal sealed class ChatRouter
     }
 
     internal static HttpRequestMessage BuildRequest(AiProfile profile, ChatMode mode, string message,
-        IReadOnlyList<ChatTurn> history)
+        IReadOnlyList<ChatTurn> history, ModePersonality? personality = null)
     {
-        string instruction = Responses.Instruction(mode) + " Responde en español salvo las frases de práctica de inglés.";
+        string instruction = Responses.Instruction(mode) + " " + (personality ?? ModePersonality.Default(mode)).Prompt() + " Responde en español salvo las frases de práctica de inglés.";
         if (profile.Provider == "Gemini")
         {
             var request = new HttpRequestMessage(HttpMethod.Post,

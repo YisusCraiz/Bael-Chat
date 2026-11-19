@@ -53,6 +53,39 @@
                 </StackPanel>
                 </ScrollViewer>
             </TabItem>
+            <TabItem Header="Personalidades">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="18">
+                        <TextBlock Text="Una forma de hablar para cada modo" FontSize="19" FontWeight="SemiBold" />
+                        <TextBlock Text="Elige el modo que quieres personalizar. Los cambios se aplican al guardar."
+                                   TextWrapping="Wrap" Margin="0,8,0,12" />
+                        <Label Target="{Binding ElementName=PersonalityMode}" Content="Modo" Padding="0,0,0,4" />
+                        <ComboBox x:Name="PersonalityMode" SelectionChanged="ChangePersonalityMode" />
+                        <Label Target="{Binding ElementName=PersonalityTone}" Content="Carácter" Padding="0,12,0,4" />
+                        <ComboBox x:Name="PersonalityTone" />
+                        <Label Target="{Binding ElementName=HumorLevel}" Content="Cantidad de humor" Padding="0,12,0,4" />
+                        <Slider x:Name="HumorLevel" Minimum="0" Maximum="3" TickFrequency="1" IsSnapToTickEnabled="True" />
+                        <TextBlock Text="{Binding ElementName=HumorLevel, Path=Value, StringFormat={}{0:0} / 3 · 0 sin bromas, 3 muy bromista}" />
+                        <Label Target="{Binding ElementName=PersonalityDetail}" Content="Extensión de las respuestas" Padding="0,12,0,4" />
+                        <ComboBox x:Name="PersonalityDetail" />
+                        <Label Target="{Binding ElementName=PersonalityAddress}" Content="Cómo quieres que te llame" Padding="0,12,0,4" />
+                        <TextBox x:Name="PersonalityAddress" MaxLength="40" />
+                        <Label Target="{Binding ElementName=PersonalityInstructions}" Content="Preferencias para expresarse" Padding="0,12,0,4" />
+                        <TextBox x:Name="PersonalityInstructions" MaxLength="1200" AcceptsReturn="True" Height="76"
+                                 TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+                        <TextBlock Text="Por ejemplo: usa analogías de anime, evita emojis y explica con palabras sencillas. Estas indicaciones libres se usan con las APIs de chat."
+                                   TextWrapping="Wrap" Margin="0,6,0,8" />
+                        <WrapPanel>
+                            <Button Content="Ver ejemplo local" Click="PreviewPersonality" />
+                            <Button Content="Restaurar este modo" Click="ResetPersonality" />
+                        </WrapPanel>
+                        <Border Background="#F6F4FC" CornerRadius="8" Padding="12" Margin="0,8,0,0">
+                            <TextBlock x:Name="PersonalityPreview" TextWrapping="Wrap"
+                                       Text="El ejemplo local muestra carácter, humor y trato. La IA adapta también tus indicaciones libres." />
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
             <TabItem Header="Chat y APIs">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="18">

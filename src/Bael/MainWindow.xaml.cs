@@ -311,7 +311,7 @@ public partial class MainWindow : Window
         Message.Focus();
         ChatStatus.Text = "";
 
-        string reply = Responses.For(profile, message);
+        string reply = current.GetPersonality(profile).FormatLocal(profile, Responses.For(profile, message));
         if (profile == ChatMode.System &&
             (message.Contains("diagn", StringComparison.OrdinalIgnoreCase)
              || message.Contains("examina", StringComparison.OrdinalIgnoreCase)

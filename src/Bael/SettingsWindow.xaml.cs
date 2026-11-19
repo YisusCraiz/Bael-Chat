@@ -21,12 +21,24 @@ public partial class SettingsWindow : Window
     private int editingIndex = -1;
     private bool loadingProfile;
 
+    private readonly Dictionary<ChatMode, ModePersonality> personalities = new();
+    private ChatMode? editingPersonality;
+    private bool loadingPersonality;
+
     internal BaelSettings Settings { get; private set; }
 
     internal SettingsWindow(BaelSettings settings, bool unreadable)
     {
         InitializeComponent();
         Settings = settings;
+        PersonalityTone.ItemsSource = ModePersonality.Tones;
+        PersonalityDetail.ItemsSource = ModePersonality.Details;
+        foreach (ChatMode mode in Enum.GetValues<ChatMode>())
+        {
+            personalities[mode] = settings.GetPersonality(mode) with { };
+            PersonalityMode.Items.Add(Responses.Name(mode));
+        }
+        PersonalityMode.SelectedIndex = 0;
         PinWindow.IsChecked = settings.Topmost;
         AllowWalking.IsChecked = settings.Walk;
         IdleDelay.Value = Math.Clamp(settings.IdleSeconds, 10, 300);
@@ -60,6 +72,61 @@ public partial class SettingsWindow : Window
 
         if (unreadable)
             Status.Text = "No se pudo leer la configuración anterior. Guardar creará una nueva.";
+    }
+
+    private void StorePersonality()
+    {
+        if (editingPersonality is not ChatMode mode)
+            return;
+        personalities[mode] = new ModePersonality
+        {
+            Tone = PersonalityTone.SelectedItem as string ?? ModePersonality.Default(mode).Tone,
+            Humor = (int)HumorLevel.Value,
+            Detail = PersonalityDetail.SelectedItem as string ?? "Equilibrado",
+            Address = PersonalityAddress.Text.Trim(),
+            Instructions = PersonalityInstructions.Text.Trim()
+        };
+    }
+
+    private void ChangePersonalityMode(object sender, SelectionChangedEventArgs e)
+    {
+        if (loadingPersonality || PersonalityMode.SelectedIndex < 0)
+            return;
+        StorePersonality();
+        editingPersonality = Enum.GetValues<ChatMode>()[PersonalityMode.SelectedIndex];
+        LoadPersonality();
+    }
+
+    private void LoadPersonality()
+    {
+        if (editingPersonality is not ChatMode mode)
+            return;
+        loadingPersonality = true;
+        ModePersonality personality = personalities[mode];
+        PersonalityTone.SelectedItem = personality.Tone;
+        HumorLevel.Value = Math.Clamp(personality.Humor, 0, 3);
+        PersonalityDetail.SelectedItem = personality.Detail;
+        PersonalityAddress.Text = personality.Address;
+        PersonalityInstructions.Text = personality.Instructions;
+        PersonalityPreview.Text = "Pulsa Ver ejemplo local para probar estos ajustes.";
+        loadingPersonality = false;
+    }
+
+    private void PreviewPersonality(object sender, RoutedEventArgs e)
+    {
+        StorePersonality();
+        if (editingPersonality is ChatMode mode)
+            PersonalityPreview.Text = personalities[mode].FormatLocal(mode,
+                Responses.For(mode, mode == ChatMode.English ? "presente" : "Quiero aprender"));
+    }
+
+    private void ResetPersonality(object sender, RoutedEventArgs e)
+    {
+        if (editingPersonality is ChatMode mode)
+        {
+            personalities[mode] = ModePersonality.Default(mode);
+            LoadPersonality();
+        }
     }
 
     private void StoreProfile()
@@ -254,6 +321,7 @@ public partial class SettingsWindow : Window
 
     private void Save(object sender, RoutedEventArgs e)
     {
+        StorePersonality();
         StoreProfile();
         foreach (AiProfile profile in profiles)
         {
@@ -276,6 +344,7 @@ public partial class SettingsWindow : Window
             OnlineChat = OnlineChat.IsChecked == true,
             AutoFallback = AutoFallback.IsChecked == true,
             Profiles = profiles.ToList(),
+            Personalities = new Dictionary<ChatMode, ModePersonality>(personalities),
             VoiceKey = VoiceKey.Password.Trim(),
             VoiceId = VoiceId.Text.Trim(),
             InputDeviceId = InputDevice.SelectedValue as string ?? Settings.InputDeviceId,

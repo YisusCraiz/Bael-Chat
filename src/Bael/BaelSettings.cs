@@ -22,6 +22,11 @@ internal sealed record BaelSettings
         Provider = "Gemini", Model = GeminiModel, Key = GeminiKey
     }];
 
+    public Dictionary<ChatMode, ModePersonality>? Personalities { get; init; }
+    public ModePersonality GetPersonality(ChatMode mode) =>
+        Personalities is not null && Personalities.TryGetValue(mode, out var personality)
+            ? personality : ModePersonality.Default(mode);
+
     public string GeminiKey { get; init; } = "";
     public string GeminiModel { get; init; } = "gemini-2.5-flash";
     public string VoiceKey { get; init; } = "";

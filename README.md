@@ -96,3 +96,9 @@ Voz y audio permite guardar BAEL_ELEVENLABS_API_KEY y BAEL_ELEVENLABS_VOICE_ID m
 Coloca los PNG transparentes en `Sprites/idle/`, `Sprites/walk/` y `Sprites/react/`, junto a `Bael.exe`. Si trabajas desde Visual Studio, coloca esas carpetas dentro de `src/Bael/` y recompila. Usa el mismo tamaño y punto de apoyo en todos los fotogramas. Numéralos como `01.png`, `02.png` y `03.png` para que se reproduzcan en ese orden.
 
 Reinicia BAEL para cargar los archivos. Reposo se repite, caminata se reproduce durante el desplazamiento y reacción se reproduce una vez al pulsar la mascota. Puedes empezar con una sola carpeta o con un solo PNG por estado. Sin sprites de reposo, BAEL muestra la mascota provisional cuando no hay un fotograma para el estado actual.
+
+## Personalidades por modo
+
+Desde Ajustes → Personalidades elige Estudiante, Tarot, Comedia, Sistema, Matemáticas o Inglés. Cada uno empieza con un carácter distinto. Puedes cambiar tono, cantidad de humor (0–3), extensión, nombre de trato y preferencias libres de expresión. Hay un ejemplo local y un botón para restaurar solo el modo seleccionado. Guardar aplica los cambios y los conserva al reiniciar.
+
+Las APIs reciben la personalidad del modo junto con sus instrucciones de función, incluso después de un relevo. La guía local aplica tono, humor y nombre de trato; las preferencias libres y la adaptación completa de la extensión requieren IA en línea. La voz de ElevenLabs lee el texto resultante. Matemáticas conserva la instrucción de guiar con pistas y preguntas.

@@ -9,6 +9,38 @@ internal static class ChatRouterChecks
 {
     internal static async Task RunAsync()
     {
+        var modes = Enum.GetValues<ChatMode>();
+        if (modes.Select(mode => ModePersonality.Default(mode).Tone).Distinct().Count() != modes.Length)
+            throw new InvalidOperationException("Los modos perdieron su carácter predeterminado.");
+
+        var custom = new ModePersonality
+        {
+            Tone = "Formal y respetuoso", Humor = 0, Address = "Yisus",
+            Instructions = "Explícame con ejemplos de clase."
+        };
+        var personalized = new BaelSettings
+        {
+            Personalities = new Dictionary<ChatMode, ModePersonality> { [ChatMode.Math] = custom }
+        };
+        var saved = JsonSerializer.Deserialize<BaelSettings>(JsonSerializer.Serialize(personalized))!;
+        if (saved.GetPersonality(ChatMode.Math) != custom
+            || saved.GetPersonality(ChatMode.English) != ModePersonality.Default(ChatMode.English))
+            throw new InvalidOperationException("No se conservaron las personalidades por modo.");
+        foreach (string provider in new[] { "Gemini", "Groq", "OpenRouter" })
+        {
+            using var request = ChatRouter.BuildRequest(new AiProfile
+            {
+                Provider = provider, Model = "test", Key = "fake"
+            }, ChatMode.Math, "mi intento", [], custom);
+            string body = await request.Content!.ReadAsStringAsync();
+            using var json = JsonDocument.Parse(body);
+            string prompt = provider == "Gemini"
+                ? json.RootElement.GetProperty("system_instruction").GetProperty("parts")[0].GetProperty("text").GetString()!
+                : json.RootElement.GetProperty("messages")[0].GetProperty("content").GetString()!;
+            if (!prompt.Contains("Formal y respetuoso") || !prompt.Contains("UNA pista") || !prompt.Contains("ejemplos de clase"))
+                throw new InvalidOperationException("Una API perdió el carácter o la función del tutor.");
+        }
+
         var handler = new FailoverHandler();
         using var client = new HttpClient(handler);
         var router = new ChatRouter(client);
