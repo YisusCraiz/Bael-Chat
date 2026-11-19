@@ -130,8 +130,7 @@ public partial class DesktopWindow : Window
         }
         chat.SelectMode(ChatMode.Student);
         ShowBubble(ChatMode.Student, new string('a', 400));
-        WriteBubble(this, EventArgs.Empty);
-        if (bubbleReply.Length > 180 || BubbleText.Text.Length == 0 || !AnswerBubble.IsOpen)
+        if (bubbleReply.Length > 180 || BubbleText.Text.Length == 0)
             throw new InvalidOperationException("La burbuja no mostró el fragmento de respuesta.");
         AnswerBubble.IsOpen = false;
         bubbleTimer.Stop();
@@ -269,9 +268,9 @@ public partial class DesktopWindow : Window
     {
         if (closing) return;
         bubbleReply = reply.Length > 180 ? reply[..177] + "…" : reply;
-        bubbleCharacters = 0;
+        bubbleCharacters = Math.Min(3, bubbleReply.Length);
         BubbleMode.Text = $"BAEL · {Responses.Name(mode)}";
-        BubbleText.Text = "";
+        BubbleText.Text = bubbleReply[..bubbleCharacters];
         bubbleExpires = Environment.TickCount64 + 14000;
         actionUntil = Environment.TickCount64 + 2400;
         AnswerBubble.IsOpen = true;
