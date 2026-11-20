@@ -159,6 +159,17 @@
                     <Label Target="{Binding ElementName=VoiceId}" Content="ID de voz" Padding="0,12,0,4" />
                     <TextBox x:Name="VoiceId" Padding="6" />
                     <TextBlock Text="Los campos vacíos usan las variables locales si están configuradas. ElevenLabs recibe la respuesta solo al pulsar Leer en voz alta." TextWrapping="Wrap" Margin="0,10,0,0" />
+                    <WrapPanel Margin="0,7,0,0">
+                        <Button x:Name="LoadVoicesButton" Content="Cargar voces de mi cuenta" Click="LoadVoices" />
+                        <Button x:Name="TestVoiceButton" Content="Probar voz" Click="TestVoice" />
+                    </WrapPanel>
+                    <ComboBox x:Name="VoiceChoices" DisplayMemberPath="Label" SelectionChanged="ChooseVoice" />
+                    <TextBlock x:Name="VoiceTestStatus" TextWrapping="Wrap" Margin="0,8,0,4" Foreground="#665391"
+                               AutomationProperties.LiveSetting="Polite" />
+                    <Label Target="{Binding ElementName=VoiceModel}" Content="Modelo para leer respuestas" Padding="0,12,0,4" />
+                    <ComboBox x:Name="VoiceModel" IsEditable="True" />
+                    <TextBlock Text="Si una voz rechaza un modelo, elige el que admite en ElevenLabs. Probar voz usa una frase corta y muestra el detalle del servicio."
+                               TextWrapping="Wrap" Margin="0,6,0,0" />
                     <Label Target="{Binding ElementName=SpeechModel}" Content="Modelo para escuchar (Speech to Text)" Padding="0,12,0,4" />
                     <TextBox x:Name="SpeechModel" />
                     <CheckBox x:Name="SpeakVoiceReplies" Content="Responder en voz alta a mis mensajes hablados" Margin="0,12,0,6" />

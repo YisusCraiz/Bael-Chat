@@ -39,6 +39,7 @@ internal sealed record BaelSettings
     public string GeminiModel { get; init; } = "gemini-2.5-flash";
     public string SpeechModel { get; init; } = "scribe_v2";
     public bool SpeakVoiceReplies { get; init; } = true;
+    public string VoiceModel { get; init; } = "eleven_multilingual_v2";
     public string VoiceKey { get; init; } = "";
     public string InputDeviceId { get; init; } = "";
     public string OutputDeviceId { get; init; } = "";

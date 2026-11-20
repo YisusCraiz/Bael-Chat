@@ -16,6 +16,7 @@ public partial class SettingsWindow : Window
 {
     private readonly DispatcherTimer meterTimer = new() { Interval = TimeSpan.FromMilliseconds(80) };
     private WasapiCapture? capture;
+    private readonly CancellationTokenSource voiceTestLifetime = new();
     private MMDevice? microphone;
 
     private readonly ObservableCollection<AiProfile> profiles = new();
@@ -79,11 +80,14 @@ public partial class SettingsWindow : Window
         ProfileEditor.IsEnabled = profiles.Count > 0;
         VoiceKey.Password = settings.VoiceKey;
         VoiceId.Text = settings.VoiceId;
+        VoiceModel.ItemsSource = ElevenLabsVoice.Models;
+        VoiceModel.Text = settings.VoiceModel;
         SpeechModel.Text = settings.SpeechModel;
         SpeakVoiceReplies.IsChecked = settings.SpeakVoiceReplies;
         Closed += (_, _) =>
         {
             StopMicTest();
+            voiceTestLifetime.Cancel();
             documentsClosed = true;
             importLifetime.Cancel();
             importLifetime.Dispose();
@@ -107,6 +111,91 @@ public partial class SettingsWindow : Window
 
         if (unreadable)
             Status.Text = "No se pudo leer la configuración anterior. Guardar creará una nueva.";
+    }
+
+    private void ChooseVoice(object sender, SelectionChangedEventArgs e)
+    {
+        if (VoiceChoices.SelectedItem is VoiceChoice voice)
+            VoiceId.Text = voice.Id;
+    }
+
+    private BaelSettings CurrentVoiceSettings() => Settings with
+    {
+        VoiceKey = VoiceKey.Password.Trim(),
+        VoiceId = VoiceId.Text.Trim(),
+        VoiceModel = string.IsNullOrWhiteSpace(VoiceModel.Text) ? "eleven_multilingual_v2" : VoiceModel.Text.Trim(),
+        Volume = Volume.Value / 100,
+        OutputDeviceId = OutputDevice.SelectedValue as string ?? Settings.OutputDeviceId
+    };
+
+    private async void LoadVoices(object sender, RoutedEventArgs e)
+    {
+        LoadVoicesButton.IsEnabled = false;
+        VoiceTestStatus.Text = "Consultando las voces de tu cuenta…";
+        try
+        {
+            var voices = await ElevenLabsVoice.GetVoicesAsync(CurrentVoiceSettings().EffectiveVoiceKey, voiceTestLifetime.Token);
+            if (documentsClosed) return;
+            VoiceChoices.ItemsSource = voices;
+            VoiceTestStatus.Text = $"{voices.Length} voces recibidas. Elige una y pulsa Probar voz.";
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error) when (error is HttpRequestException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            if (!documentsClosed) VoiceTestStatus.Text = error.Message;
+        }
+        finally
+        {
+            if (!documentsClosed) LoadVoicesButton.IsEnabled = true;
+        }
+    }
+
+    private async void TestVoice(object sender, RoutedEventArgs e)
+    {
+        TestVoiceButton.IsEnabled = false;
+        LoadVoicesButton.IsEnabled = false;
+        VoiceTestStatus.Text = "Generando una frase de prueba…";
+        try
+        {
+            BaelSettings selected = CurrentVoiceSettings();
+            byte[] audio = await ElevenLabsVoice.GenerateAsync(selected, "Hola, soy BAEL. Mi voz ya está lista.", voiceTestLifetime.Token);
+            if (documentsClosed) return;
+            using var device = AudioDevices.Open(selected.OutputDeviceId, DataFlow.Render);
+            using var stream = new MemoryStream(audio, writable: false);
+            using var reader = new Mp3FileReader(stream);
+            using var player = new WasapiOut(device, AudioClientShareMode.Shared, true, 100);
+            var samples = new NAudio.Wave.SampleProviders.VolumeSampleProvider(reader.ToSampleProvider())
+            {
+                Volume = (float)selected.Volume
+            };
+            var finished = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            player.PlaybackStopped += (_, args) => finished.TrySetResult(args.Exception);
+            player.Init(samples.ToWaveProvider());
+            player.Play();
+            VoiceTestStatus.Text = "Reproduciendo en tu salida seleccionada…";
+            Exception? error = await finished.Task.WaitAsync(TimeSpan.FromSeconds(30), voiceTestLifetime.Token);
+            if (!documentsClosed) VoiceTestStatus.Text = error is null
+                ? "ElevenLabs generó la voz correctamente. Guarda para usar estos ajustes."
+                : "El audio se generó, pero Windows no pudo reproducirlo en esa salida.";
+        }
+        catch (OperationCanceledException) { }
+        catch (InvalidOperationException error)
+        {
+            if (!documentsClosed) VoiceTestStatus.Text = error.Message;
+        }
+        catch (Exception error) when (error is HttpRequestException or IOException or UnauthorizedAccessException
+                                      or TimeoutException or System.Runtime.InteropServices.COMException or NAudio.MmException)
+        {
+            if (!documentsClosed) VoiceTestStatus.Text = "No se pudo completar la prueba de voz. Revisa la conexión y la salida de audio.";
+        }
+        finally
+        {
+            if (!documentsClosed)
+            {
+                TestVoiceButton.IsEnabled = true;
+                LoadVoicesButton.IsEnabled = true;
+            }
+        }
     }
 
     private void StoreDocumentRule()
@@ -494,6 +583,7 @@ public partial class SettingsWindow : Window
             Personalities = new Dictionary<ChatMode, ModePersonality>(personalities),
             Documents = documents.ToList(),
             DocumentRules = new Dictionary<ChatMode, DocumentRule>(documentRules),
+            VoiceModel = string.IsNullOrWhiteSpace(VoiceModel.Text) ? "eleven_multilingual_v2" : VoiceModel.Text.Trim(),
             VoiceKey = VoiceKey.Password.Trim(),
             VoiceId = VoiceId.Text.Trim(),
             SpeechModel = string.IsNullOrWhiteSpace(SpeechModel.Text) ? "scribe_v2" : SpeechModel.Text.Trim(),

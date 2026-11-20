@@ -19,6 +19,7 @@ public partial class App : Application
                 var companion = new DesktopWindow(testMode: true);
                 companion.VerifyCompanion();
                 companion.Close();
+                await ElevenLabsVoice.VerifyAsync();
                 SpeechSilence.Verify();
                 await SpeechInput.VerifyTranscriptionAsync();
                 PdfLibrary.Verify();

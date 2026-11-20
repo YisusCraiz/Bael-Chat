@@ -135,3 +135,9 @@ En Ajustes → Voz y audio selecciona el micrófono y configura una clave de Ele
 Abre el chat y pulsa Hablar. BAEL graba una frase y termina tras una pausa de 1,6 segundos después de detectar voz, al pulsar Terminar frase o al llegar a 30 segundos. La barra muestra el nivel. El audio se mantiene en memoria y se envía a ElevenLabs para convertirlo en texto. La frase reconocida se muestra y se consulta en el modo actual, respetando sus límites de documentos.
 
 Responder en voz alta a mis mensajes hablados activa la lectura automática de la respuesta. Puedes desactivarlo y usar Leer en voz alta manualmente. La clave debe tener cuota para transcripción y síntesis según tu plan. El micrófono se abre únicamente al pulsar Hablar.
+
+## Diagnosticar la lectura de ElevenLabs
+
+En Ajustes → Voz y audio usa Cargar voces de mi cuenta, selecciona una voz y pulsa Probar voz. El botón genera una frase corta y la reproduce en tu salida seleccionada. Guarda los ajustes que funcionen. También puedes elegir el modelo de lectura: Multilingual v2, Flash v2.5 o un ID compatible con tu voz.
+
+BAEL muestra el estado y el detalle devueltos por ElevenLabs, incluyendo ID de voz inexistente, restricción de plan, cuota o modelo incompatible. El código HTTP por sí solo no identifica la causa. La clave se oculta si aparece en el mensaje del servicio. Cargar voces requiere permiso de lectura de voces en la clave, y listar una voz no garantiza que el plan permita sintetizarla.
