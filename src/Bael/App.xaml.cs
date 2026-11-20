@@ -20,6 +20,9 @@ public partial class App : Application
                 companion.VerifyCompanion();
                 companion.Close();
                 await ElevenLabsVoice.VerifyAsync();
+                DanceRoutine.Verify();
+                GlobalShortcuts.Verify();
+                GlobalShortcuts.VerifyNative();
                 GameSession.Verify();
                 ModeActivities.Verify();
                 var gameWindow = new GameWindow(ModePersonality.Default(ChatMode.Gamer));

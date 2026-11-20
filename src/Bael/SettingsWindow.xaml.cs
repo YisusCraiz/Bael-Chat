@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using System.Windows.Input;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 
@@ -64,6 +65,9 @@ public partial class SettingsWindow : Window
             DocumentMode.Items.Add(Responses.Name(mode));
         }
         DocumentMode.SelectedIndex = 0;
+        ChatTransparency.Value = Math.Clamp(settings.ChatTransparency * 100, 0, 65);
+        TalkShortcut.Text = settings.TalkShortcut;
+        DanceShortcut.Text = settings.DanceShortcut;
         PinWindow.IsChecked = settings.Topmost;
         AllowWalking.IsChecked = settings.Walk;
         DanceWithAudio.IsChecked = settings.DanceWithAudio;
@@ -113,6 +117,23 @@ public partial class SettingsWindow : Window
         if (unreadable)
             Status.Text = "No se pudo leer la configuración anterior. Guardar creará una nueva.";
     }
+
+    private void CaptureShortcut(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Tab) return;
+        e.Handled = true;
+        Key key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key is Key.Delete or Key.Back && Keyboard.Modifiers == ModifierKeys.None)
+        { ((TextBox)sender).Text = ""; ShortcutStatus.Text = "Atajo desactivado. Guarda para aplicar."; return; }
+        if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin) return;
+        string value = Shortcut.Capture(key, Keyboard.Modifiers);
+        if (!Shortcut.TryParse(value, out _))
+        { ShortcutStatus.Text = "Usa Ctrl o Alt y una tecla, o una tecla F excepto F12."; return; }
+        ((TextBox)sender).Text = value;
+        ShortcutStatus.Text = "Combinación capturada. Guarda para aplicar.";
+    }
+    private void ResetShortcuts(object sender, RoutedEventArgs e)
+    { TalkShortcut.Text = "Ctrl+Alt+V"; DanceShortcut.Text = "Ctrl+Alt+B"; ShortcutStatus.Text = "Atajos restaurados. Guarda para aplicar."; }
 
     private void ChooseVoice(object sender, SelectionChangedEventArgs e)
     {
@@ -555,6 +576,9 @@ public partial class SettingsWindow : Window
     private void Save(object sender, RoutedEventArgs e)
     {
         if (importing) return;
+        if (!Shortcut.TryParse(TalkShortcut.Text, out var talkKey) || !Shortcut.TryParse(DanceShortcut.Text, out var danceKey)
+            || (!string.IsNullOrWhiteSpace(TalkShortcut.Text) && !string.IsNullOrWhiteSpace(DanceShortcut.Text) && talkKey == danceKey))
+        { Status.Text = "Elige dos atajos válidos y distintos, o deja uno desactivado."; return; }
         StoreDocumentRule();
         StorePersonality();
         StoreProfile();
@@ -571,6 +595,9 @@ public partial class SettingsWindow : Window
 
         var updated = new BaelSettings
         {
+            ChatTransparency = ChatTransparency.Value / 100,
+            TalkShortcut = TalkShortcut.Text,
+            DanceShortcut = DanceShortcut.Text,
             Topmost = PinWindow.IsChecked == true,
             IdleSeconds = (int)IdleDelay.Value,
             MessagesToUndress = (int)MessageThreshold.Value,

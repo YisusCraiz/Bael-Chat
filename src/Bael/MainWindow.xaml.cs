@@ -17,6 +17,27 @@ public partial class MainWindow : Window
 {
     internal BaelSettings CurrentSettings => settings;
     internal event Action? UserSpoke;
+    internal event Action<string>? SpeechNoticeChanged;
+    internal bool IsCapturingVoice => speechRequest is not null;
+    private string SpeechNotice
+    {
+        set { SpeechStatus.Text = value; SpeechNoticeChanged?.Invoke(value); }
+    }
+    internal void TalkFromShortcut() => Talk(this, new RoutedEventArgs());
+    internal void SetDanceEnabled(bool enabled)
+    {
+        settings = settings with { DanceWithAudio = enabled };
+        ApplySettings();
+        try { settings.Save(); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
+        { SpeechNotice = "El baile cambió para esta sesión, pero Windows no pudo guardar la preferencia."; }
+        SettingsChanged?.Invoke(settings);
+    }
+    private void DragChat(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is TextBlock or Grid && e.LeftButton == MouseButtonState.Pressed) DragMove();
+    }
+
     internal event Action<ChatMode, string>? ReplyReady;
     internal event Action<ChatMode>? ModeChanged;
     private readonly ChatRouter router = new();
@@ -91,6 +112,9 @@ public partial class MainWindow : Window
     internal void VerifyStartup()
     {
         var click = new RoutedEventArgs(Button.ClickEvent);
+        if (!AllowsTransparency || WindowStyle != WindowStyle.None || ChatSurface.Background is not SolidColorBrush glass
+            || glass.Color.A == 0)
+            throw new InvalidOperationException("El chat no preparó su fondo translúcido.");
         OpenConversation();
         if (Chat.Visibility != Visibility.Visible)
             throw new InvalidOperationException("El chat no abrió.");
@@ -192,6 +216,8 @@ public partial class MainWindow : Window
     private void ApplySettings()
     {
         Topmost = settings.Topmost;
+        ChatSurface.Background = new SolidColorBrush(Color.FromArgb(
+            (byte)Math.Round(255 * (1 - Math.Clamp(settings.ChatTransparency, 0, 0.65))), 245, 243, 250));
         if (voiceVolume is not null)
             voiceVolume.Volume = (float)Math.Clamp(settings.Volume, 0, 1);
     }
@@ -328,17 +354,17 @@ public partial class MainWindow : Window
 
         if (!SendButton.IsEnabled || voiceRequest is not null)
         {
-            SpeechStatus.Text = "Espera a que termine la respuesta actual.";
+            SpeechNotice = "Espera a que termine la respuesta actual.";
             return;
         }
         if (!string.IsNullOrWhiteSpace(Message.Text))
         {
-            SpeechStatus.Text = "Envía o borra el texto del cuadro antes de grabar.";
+            SpeechNotice = "Envía o borra el texto del cuadro antes de grabar.";
             return;
         }
         if (string.IsNullOrWhiteSpace(settings.EffectiveVoiceKey))
         {
-            SpeechStatus.Text = "Agrega la clave de ElevenLabs en Ajustes → Voz y audio.";
+            SpeechNotice = "Agrega la clave de ElevenLabs en Ajustes → Voz y audio.";
             return;
         }
 
@@ -348,13 +374,14 @@ public partial class MainWindow : Window
         speechRequest = request;
         finishRecording = false;
         recording = true;
+        UserSpoke?.Invoke();
         SendButton.IsEnabled = false;
         Modes.IsEnabled = false;
         Message.IsReadOnly = true;
         ReadAloudButton.IsEnabled = false;
         TalkButton.Content = "Terminar frase";
         TalkLevel.Visibility = Visibility.Visible;
-        SpeechStatus.Text = "Te escucho… Haz una pausa al terminar (máximo 30 segundos).";
+        SpeechNotice = "Te escucho… Haz una pausa al terminar (máximo 30 segundos).";
         try
         {
             byte[]? audio = await SpeechInput.RecordAsync(current.InputDeviceId, () => finishRecording,
@@ -364,22 +391,22 @@ public partial class MainWindow : Window
             TalkLevel.Visibility = Visibility.Collapsed;
             if (audio is null)
             {
-                SpeechStatus.Text = "No detecté voz. Revisa el micrófono seleccionado y sus permisos.";
+                SpeechNotice = "No detecté voz. Revisa el micrófono seleccionado y sus permisos.";
                 return;
             }
 
             TalkButton.Content = "Cancelar";
-            SpeechStatus.Text = "Transcribiendo con ElevenLabs…";
+            SpeechNotice = "Transcribiendo con ElevenLabs…";
             string? text = await SpeechInput.TranscribeAsync(current, audio, request.Token);
             if (isClosed) return;
             if (string.IsNullOrWhiteSpace(text))
             {
-                SpeechStatus.Text = "No se reconoció una frase. Pulsa Hablar e intenta otra vez.";
+                SpeechNotice = "No se reconoció una frase. Pulsa Hablar e intenta otra vez.";
                 return;
             }
 
             Message.Text = text;
-            SpeechStatus.Text = $"Te entendí: {text}";
+            SpeechNotice = $"Te entendí: {text}";
             SendButton.IsEnabled = true;
             TalkButton.IsEnabled = false;
             await SendCurrentMessage();
@@ -388,12 +415,12 @@ public partial class MainWindow : Window
         }
         catch (OperationCanceledException)
         {
-            if (!isClosed) SpeechStatus.Text = request.IsCancellationRequested
+            if (!isClosed) SpeechNotice = request.IsCancellationRequested
                 ? "Grabación o transcripción cancelada." : "La transcripción tardó demasiado. Intenta otra vez.";
         }
         catch (HttpRequestException error)
         {
-            if (!isClosed) SpeechStatus.Text = error.StatusCode is { } status
+            if (!isClosed) SpeechNotice = error.StatusCode is { } status
                 ? $"ElevenLabs devolvió {(int)status}. Revisa el permiso Speech to Text, el modelo y la cuota de la clave."
                 : "No se pudo conectar con ElevenLabs para transcribir.";
         }
@@ -401,7 +428,7 @@ public partial class MainWindow : Window
                                       or InvalidOperationException or UnauthorizedAccessException
                                       or IOException or TimeoutException or JsonException or NAudio.MmException)
         {
-            if (!isClosed) SpeechStatus.Text = "No se pudo completar la entrada de voz. Revisa el micrófono, los permisos y el modelo de transcripción.";
+            if (!isClosed) SpeechNotice = "No se pudo completar la entrada de voz. Revisa el micrófono, los permisos y el modelo de transcripción.";
         }
         finally
         {
@@ -521,6 +548,6 @@ public partial class MainWindow : Window
 
 internal sealed record ConversationLine(string Speaker, string Text, bool IsUser)
 {
-    public string Background => IsUser ? "#EBE4FA" : "#F4F3F8";
+    public string Background => IsUser ? "#66EBE4FA" : "#55F4F3F8";
     public Thickness Margin => IsUser ? new Thickness(38, 0, 0, 0) : new Thickness(0, 0, 38, 0);
 }

@@ -9,6 +9,9 @@ internal sealed record BaelSettings
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BAEL", "settings.dat");
 
+    public double ChatTransparency { get; init; } = 0.35;
+    public string TalkShortcut { get; init; } = "Ctrl+Alt+V";
+    public string DanceShortcut { get; init; } = "Ctrl+Alt+B";
     public bool Topmost { get; init; } = true;
     public int IdleSeconds { get; init; } = 30;
     public int MessagesToUndress { get; init; } = 4;

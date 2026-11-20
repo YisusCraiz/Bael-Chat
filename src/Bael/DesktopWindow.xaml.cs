@@ -28,6 +28,9 @@ public partial class DesktopWindow : Window
     private readonly OutputAudioMonitor audioMonitor = new();
     private readonly DanceReaction danceReaction = new();
     private bool dancing;
+    private readonly DanceRoutine danceRoutine = new();
+    private BitmapImage[] danceFrames = [];
+    private GlobalShortcuts? shortcuts;
     private readonly DispatcherTimer movementTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private readonly DispatcherTimer bubbleTimer = new() { Interval = TimeSpan.FromMilliseconds(30) };
     private long movementTimestamp = Stopwatch.GetTimestamp();
@@ -59,6 +62,18 @@ public partial class DesktopWindow : Window
             }).ToArray();
         }
 
+        danceFrames = Enumerable.Range(0, 8).Select(index =>
+        {
+            var image = new BitmapImage(); image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad;
+            image.UriSource = new Uri(Path.Combine(AppContext.BaseDirectory, "Sprites", "desktop", $"dance-{index}.png"));
+            image.EndInit(); image.Freeze(); return image;
+        }).ToArray();
+        if (!testMode) SourceInitialized += (_, _) =>
+        {
+            shortcuts = new GlobalShortcuts(this, () => chat.TalkFromShortcut(), ToggleDance);
+            ConfigureShortcuts();
+        };
+        chat.SpeechNoticeChanged += text => { if (!string.IsNullOrWhiteSpace(text)) ShowBubble(selectedMode, text); };
         BuildWheel();
         SetOutfit("boy");
         Loaded += (_, _) =>
@@ -78,6 +93,8 @@ public partial class DesktopWindow : Window
         {
             AnswerBubble.IsOpen = false;
             bubbleTimer.Stop();
+            danceRoutine.Reset();
+            dancing = false;
             selectedMode = selected;
             transition = null;
             messages.Clear();
@@ -89,9 +106,11 @@ public partial class DesktopWindow : Window
         {
             settings = updated;
             Topmost = settings.Topmost;
+            if (!settingsOpen) ConfigureShortcuts();
             if (!settings.DanceWithAudio)
             {
                 audioMonitor.Dispose();
+                danceRoutine.Reset();
                 dancing = danceReaction.Update(false, 0, settings.DanceThreshold, Environment.TickCount64);
             }
         };
@@ -99,6 +118,7 @@ public partial class DesktopWindow : Window
         Closed += (_, _) =>
         {
             closing = true;
+            shortcuts?.Dispose();
             timer.Stop();
             movementTimer.Stop();
             audioMonitor.Dispose();
@@ -129,10 +149,16 @@ public partial class DesktopWindow : Window
 
         WanderMotion.Verify();
         DanceReaction.Verify();
+        DanceRoutine.Verify();
+        GlobalShortcuts.Verify();
         foreach (ChatMode mode in Enum.GetValues<ChatMode>())
         {
-            ((Button)WheelCanvas.Children[Array.IndexOf(Enum.GetValues<ChatMode>(), mode)])
-                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var modeButton = (Button)WheelCanvas.Children[Array.IndexOf(Enum.GetValues<ChatMode>(), mode)];
+            var layout = (Grid)modeButton.Content;
+            if (layout.Children[0] is not Image icon || icon.HorizontalAlignment != HorizontalAlignment.Center
+                || icon.Source is not CroppedBitmap)
+                throw new InvalidOperationException("La miniatura del modo no está centrada.");
+            modeButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             if (outfit != Responses.Sprite(mode) || selectedMode != mode || chat.IsVisible)
                 throw new InvalidOperationException("La selección del modo no cambió el sprite.");
             if (string.IsNullOrWhiteSpace(Responses.For(mode, "prueba")))
@@ -147,9 +173,23 @@ public partial class DesktopWindow : Window
         if (WheelCanvas.Children.Count != Enum.GetValues<ChatMode>().Length + 2)
             throw new InvalidOperationException("Faltan burbujas de la rueda.");
 
+        if (danceFrames.Length != 8 || danceFrames.Any(image => image.PixelWidth == 0))
+            throw new InvalidOperationException("Faltan los sprites de baile.");
         foreach (var sequence in frames.Values)
             if (sequence.Length != 4 || sequence.Any(image => image.PixelWidth == 0))
                 throw new InvalidOperationException("Faltan fotogramas.");
+    }
+
+    private void ConfigureShortcuts()
+    {
+        string problem = shortcuts?.Apply(settings) ?? "";
+        if (problem.Length > 0) ShowBubble(selectedMode, problem);
+    }
+    private void ToggleDance()
+    {
+        chat.SetDanceEnabled(!settings.DanceWithAudio);
+        ShowBubble(selectedMode, settings.DanceWithAudio
+            ? "Baile con audio activado. ¡Que suene la música!" : "Baile con audio desactivado.");
     }
 
     private void HideChat(object? sender, CancelEventArgs e)
@@ -200,10 +240,20 @@ public partial class DesktopWindow : Window
     {
         long now = Environment.TickCount64;
         long idleDelay = Math.Clamp(settings.IdleSeconds, 10, 300) * 1000L;
-        bool interacting = IsMouseOver || dragStart is not null || settingsOpen || ModeWheel.IsOpen;
+        bool interacting = IsMouseOver || dragStart is not null || settingsOpen || ModeWheel.IsOpen || chat.IsCapturingVoice;
         float level = settings.DanceWithAudio ? audioMonitor.ReadLevel(now) : 0;
-        dancing = danceReaction.Update(settings.DanceWithAudio && !interacting && transition is null,
+        bool heard = danceReaction.Update(settings.DanceWithAudio && !interacting,
             level, Math.Clamp(settings.DanceThreshold, 0.01, 0.30), now);
+        DanceStage danceStage = danceRoutine.Update(heard, now);
+        dancing = danceStage == DanceStage.Dancing;
+        if (danceRoutine.Active)
+        {
+            lastActivity = now;
+            Character.Source = dancing
+                ? danceFrames[DanceRoutine.Pose((now - danceRoutine.Started) / 1000.0).Frame]
+                : frames["magic"][danceRoutine.MagicFrame(now)];
+            return;
+        }
         bool paused = interacting || dancing || chat.IsVisible || AnswerBubble.IsOpen;
         if (paused)
             lastActivity = now;
@@ -259,7 +309,7 @@ public partial class DesktopWindow : Window
         double seconds = Stopwatch.GetElapsedTime(movementTimestamp).TotalSeconds;
         movementTimestamp = Stopwatch.GetTimestamp();
         bool paused = !settings.Walk || IsMouseOver || dragStart is not null || settingsOpen
-            || chat.IsVisible || ModeWheel.IsOpen || AnswerBubble.IsOpen || transition is not null || dancing;
+            || chat.IsVisible || ModeWheel.IsOpen || AnswerBubble.IsOpen || transition is not null || danceRoutine.Active || chat.IsCapturingVoice;
         if (paused)
             motion.Stop();
         else
@@ -271,13 +321,19 @@ public partial class DesktopWindow : Window
             Top = next.Y;
         }
 
-        double phase = Environment.TickCount64 / (dancing ? 120.0 : motion.IsMoving ? 100.0 : 600.0);
-        BodyBob.Y = dancing ? -Math.Abs(Math.Sin(phase)) * 9 : Math.Sin(phase) * (motion.IsMoving ? 2.4 : 0.8);
-        BodyBob.X = dancing ? Math.Sin(phase * 0.5) * 5 : 0;
-        BodyTilt.Angle = dancing ? Math.Sin(phase * 0.5) * 8 : motion.IsMoving ? Math.Sin(phase) * 1.8 : 0;
-        Facing.ScaleY = dancing ? 1 + Math.Sin(phase) * 0.025 : 1;
-        if (Math.Abs(motion.HorizontalSpeed) > 5)
-            Facing.ScaleX = motion.HorizontalSpeed < 0 ? -1 : 1;
+        if (dancing)
+        {
+            var pose = DanceRoutine.Pose((Environment.TickCount64 - danceRoutine.Started) / 1000.0);
+            BodyBob.X = pose.X; BodyBob.Y = pose.Y; BodyTilt.Angle = pose.Angle;
+            Facing.ScaleX = pose.ScaleX; Facing.ScaleY = pose.ScaleY;
+        }
+        else
+        {
+            double phase = Environment.TickCount64 / (motion.IsMoving ? 100.0 : 600.0);
+            BodyBob.Y = Math.Sin(phase) * (motion.IsMoving ? 2.4 : 0.8); BodyBob.X = 0;
+            BodyTilt.Angle = motion.IsMoving ? Math.Sin(phase) * 1.8 : 0; Facing.ScaleY = 1;
+            Facing.ScaleX = Math.Abs(motion.HorizontalSpeed) > 5 ? (motion.HorizontalSpeed < 0 ? -1 : 1) : Facing.ScaleX < 0 ? -1 : 1;
+        }
     }
 
     private void ShowBubble(ChatMode mode, string reply)
@@ -305,34 +361,52 @@ public partial class DesktopWindow : Window
         BubbleText.Text = bubbleReply[..bubbleCharacters];
     }
 
+    private static BitmapSource WheelPortrait(BitmapSource source)
+    {
+        var rgba = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+        int stride = rgba.PixelWidth * 4;
+        byte[] pixels = new byte[stride * rgba.PixelHeight]; rgba.CopyPixels(pixels, stride, 0);
+        int left = rgba.PixelWidth, top = rgba.PixelHeight, right = -1, bottom = -1;
+        for (int y=0; y<rgba.PixelHeight; y++) for (int x=0; x<rgba.PixelWidth; x++)
+            if (pixels[y*stride+x*4+3] > 32)
+            { left=Math.Min(left,x); right=Math.Max(right,x); top=Math.Min(top,y); bottom=Math.Max(bottom,y); }
+        if (right < left) return source;
+        var crop = new CroppedBitmap(rgba, new Int32Rect(left,top,right-left+1,bottom-top+1));
+        crop.Freeze(); return crop;
+    }
+
     private void BuildWheel()
     {
         ChatMode[] modes = Enum.GetValues<ChatMode>();
         for (int index = 0; index < modes.Length + 2; index++)
         {
-            var content = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            var content = new Grid { Width = 68, Height = 56, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+            content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(39) });
+            content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(17) });
             if (index < modes.Length)
             {
                 ChatMode option = modes[index];
-                content.Children.Add(new Image { Source = frames[Responses.Sprite(option)][0], Height = 40 });
-                content.Children.Add(new TextBlock
+                content.Children.Add(new Image { Source = WheelPortrait(frames[Responses.Sprite(option)][0]), Height = 37, MaxWidth = 58, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+                var caption = new TextBlock
                 {
                     Text = Responses.Name(option), FontSize = 10,
-                    TextAlignment = TextAlignment.Center
-                });
+                    TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetRow(caption, 1); content.Children.Add(caption);
             }
             else
             {
                 content.Children.Add(new TextBlock
                 {
                     Text = index == modes.Length ? "⚙" : "×", FontSize = 23,
-                    TextAlignment = TextAlignment.Center
+                    TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
                 });
-                content.Children.Add(new TextBlock
+                var caption = new TextBlock
                 {
                     Text = index == modes.Length ? "Ajustes" : "Salir", FontSize = 10,
-                    TextAlignment = TextAlignment.Center
-                });
+                    TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetRow(caption, 1); content.Children.Add(caption);
             }
 
             var circle = new FrameworkElementFactory(typeof(Border));
@@ -456,6 +530,7 @@ public partial class DesktopWindow : Window
     {
         Interact();
         settingsOpen = true;
+        shortcuts?.Suspend();
         try
         {
             chat.EditSettings(this);
@@ -463,6 +538,7 @@ public partial class DesktopWindow : Window
         finally
         {
             settingsOpen = false;
+            ConfigureShortcuts();
         }
     }
 

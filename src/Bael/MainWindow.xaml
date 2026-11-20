@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="BAEL-UMAN · Conversación" Icon="Assets/bael-unicorn.ico"
         Width="600" Height="740" MinWidth="420" MinHeight="440"
-        Topmost="True" WindowStartupLocation="Manual">
+        Topmost="True" WindowStartupLocation="Manual" WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="CanResizeWithGrip">
+    <Border x:Name="ChatSurface" CornerRadius="18" BorderBrush="#AAC8B7EE" BorderThickness="1">
     <Grid x:Name="Chat" Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -11,7 +12,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <StackPanel Margin="0,0,0,10">
-        <Grid Margin="0,0,0,8">
+        <Grid Margin="0,0,0,8" MouseLeftButtonDown="DragChat" Background="Transparent" ToolTip="Arrastra aquí para mover el chat">
             <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <StackPanel>
                 <TextBlock Text="BAEL-UMAN" FontSize="22" FontWeight="Bold" />
@@ -25,7 +26,7 @@
         <TextBlock x:Name="ModeDescription" TextWrapping="Wrap" Foreground="#776C90" Margin="0,0,0,6" />
         <WrapPanel x:Name="ActivityButtons" />
         </StackPanel>
-        <Border Grid.Row="1" Background="White" CornerRadius="18" BorderBrush="#E9E3F2" BorderThickness="1" Padding="8">
+        <Border Grid.Row="1" Background="Transparent" CornerRadius="18" BorderBrush="#E9E3F2" BorderThickness="1" Padding="8">
             <Grid>
                 <TextBlock Text="Escribe tu primera pregunta para empezar."
                            HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#8A809B">
@@ -67,7 +68,7 @@
             <TextBlock x:Name="ChatStatus" TextWrapping="Wrap" Foreground="#776C90" Margin="0,0,0,7"
                        AutomationProperties.LiveSetting="Polite" />
             <Grid>
-                <TextBox x:Name="Message" Height="76" AcceptsReturn="True" TextWrapping="Wrap"
+                <TextBox x:Name="Message" Height="76" Background="#BBFFFFFF" AcceptsReturn="True" TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto" PreviewKeyDown="MessageKey"
                          AutomationProperties.Name="Escribe tu mensaje" />
                 <TextBlock Text="Escribe aquí…  Enter envía · Shift + Enter añade una línea"
@@ -97,5 +98,7 @@
             <TextBlock x:Name="VoiceStatus" TextWrapping="Wrap" Foreground="#776C90" Margin="0,4,0,0"
                        AutomationProperties.LiveSetting="Polite" />
         </StackPanel>
+        <ResizeGrip Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-13,-13" />
     </Grid>
+    </Border>
 </Window>

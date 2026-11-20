@@ -153,3 +153,18 @@ Gamer abre una ventana de juegos al pulsar Vasos o Póker. Incluye mezcla animad
 Ocho fotogramas transparentes nuevos (`Sprites/desktop/free-0.png` a `free-3.png` y `gamer-0.png` a `gamer-3.png`) se integran en la rueda y en las animaciones del escritorio. Generados con el generador de imágenes integrado a partir del chico existente: cuatro poses de charla con sudadera lavanda y cuatro de jugador con chaqueta, auriculares, cartas y ficha ficticia; fondo transparente, misma identidad chibi. La hoja se extrajo sin fondo y se separó en celdas de 320×256.
 
 Las pruebas de Windows verifican los ocho accesos de modo, la rueda, sus 44 fotogramas, progresión de actividades, saldo y recarga, exclusión de cartas duplicadas, clasificación de manos y una ronda de póker desde la interfaz, además del instalador y las pruebas anteriores.
+
+
+## Transparencia, atajos globales y baile de unicornio
+
+En Ajustes → Pantalla y teclas el fondo del chat puede hacerse transparente entre 0% y 65% (35% inicial). El texto permanece opaco. El chat tiene borde redondeado, se mueve arrastrando el encabezado y se redimensiona desde la esquina inferior derecha. La rueda usa una miniatura recortada al área visible del PNG y una cuadrícula centrada para la imagen y su nombre.
+
+Atajos iniciales: **Ctrl+Alt+V** para comenzar la escucha sin abrir el chat (otra pulsación termina la frase o cancela la transcripción), y **Ctrl+Alt+B** para activar/desactivar el baile con audio. Son pulsaciones, no requieren mantener la tecla. Usa un modificador Ctrl/Alt/Win o una tecla F excepto F12; se pueden cambiar en Ajustes y borrar con Supr/Retroceso. Se rechazan combinaciones repetidas. Los atajos se suspenden al editar ajustes, se vuelven a registrar al cerrar y se liberan al salir. Si otro programa ocupa una combinación, BAEL avisa en su burbuja. La entrada de voz sigue necesitando la clave y permisos de ElevenLabs; sus estados y la respuesta se muestran junto al personaje. La detección del audio se pausa mientras se captura voz o se interactúa con el personaje.
+
+En cualquier modo, el audio del dispositivo predeterminado activa una transición mágica al unicornio. La rutina combina ocho sprites (`Sprites/desktop/dance-0.png` a `dance-7.png`) con zapateo, disco, pasos cruzados, salto, vuelta completa, marometa y giro lateral. Al terminar el audio se espera un breve margen de silencio, se muestra la transformación inversa y reaparece el aspecto anterior. Cambiar de modo o apagar la opción restaura el modo seleccionado. La ventana transparente de la mascota reserva más espacio para las rotaciones sin recortarlas.
+
+Los sprites se generaron con el generador integrado usando el unicornio existente como referencia: hoja transparente 4×2, misma cabeza blanca/cuerno plateado/ojos azules/uniforme blanco con franjas naranjas y zapatos negros, ocho poses de baile aisladas. Se separaron en ocho celdas de 320×256 conservando el canal alfa. La animación suave se calcula a partir del tiempo transcurrido, en el temporizador de movimiento.
+
+Las pruebas de Windows comprueban registro nativo, entrega de mensajes y conflictos/liberación de atajos con ventanas de prueba, las transiciones de baile, los límites de la coreografía, los nuevos PNG y el centrado de las miniaturas. Las teclas físicas, el dispositivo de sonido y el acabado visual todavía deben comprobarse en la PC del usuario.
+
+Referencias de plataforma: [RegisterHotKey](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-registerhotkey), [UnregisterHotKey](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-unregisterhotkey) y [AllowsTransparency de WPF](https://learn.microsoft.com/dotnet/api/system.windows.window.allowstransparency).
