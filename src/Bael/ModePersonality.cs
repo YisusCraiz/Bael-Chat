@@ -11,12 +11,15 @@ internal sealed record ModePersonality
     public static readonly string[] Tones =
     [
         "Cercano y juguetón", "Misterioso y teatral", "Ingenioso y bromista",
-        "Sereno y directo", "Paciente y motivador", "Alegre y expresivo", "Formal y respetuoso"
+        "Sereno y directo", "Paciente y motivador", "Alegre y expresivo", "Formal y respetuoso",
+        "Cómplice y curioso", "Competitivo y teatral"
     ];
     public static readonly string[] Details = ["Breve", "Equilibrado", "Detallado"];
 
     public static ModePersonality Default(ChatMode mode) => mode switch
     {
+        ChatMode.Free => new() { Tone = Tones[7], Humor = 2 },
+        ChatMode.Gamer => new() { Tone = Tones[8], Humor = 3 },
         ChatMode.Student => new() { Tone = Tones[0], Humor = 2 },
         ChatMode.Tarot => new() { Tone = Tones[1], Humor = 1 },
         ChatMode.Comedy => new() { Tone = Tones[2], Humor = 3 },
@@ -37,6 +40,8 @@ internal sealed record ModePersonality
     {
         string opening = Tone switch
         {
+            "Cómplice y curioso" => "Te escucho.",
+            "Competitivo y teatral" => "¡Entra a mi sala de retos!",
             "Cercano y juguetón" => "Vamos a ello.",
             "Misterioso y teatral" => "Abramos esta pequeña escena.",
             "Ingenioso y bromista" => "Tengo una idea.",
@@ -48,6 +53,8 @@ internal sealed record ModePersonality
         string address = string.IsNullOrWhiteSpace(Address) ? "" : $"{Address}, ";
         string joke = Humor >= 2 ? mode switch
         {
+            ChatMode.Free => " Tenemos tiempo para una buena historia.",
+            ChatMode.Gamer => " Mi cara de victoria viene incluida con el traje.",
             ChatMode.Student => " El unicornio también está en su arco de estudio.",
             ChatMode.Tarot => " Las cartas prometieron llegar antes que la tarea.",
             ChatMode.Comedy => " Al menos la mochila ya tiene experiencia cargando problemas.",

@@ -20,12 +20,15 @@ public partial class MainWindow : Window
     internal event Action<ChatMode, string>? ReplyReady;
     internal event Action<ChatMode>? ModeChanged;
     private readonly ChatRouter router = new();
+    private readonly ModeActivities activities = new();
+    private GameWindow? games;
     private readonly Dictionary<ChatMode, List<ChatTurn>> histories = new();
 
     internal void SelectMode(ChatMode selected)
     {
         mode = selected;
         ModeLabel.Text = $"Modo {Responses.Name(mode).ToLowerInvariant()}";
+        UpdateActivities();
         ModeChanged?.Invoke(mode);
         ChatStatus.Text = settings.GetDocumentRule(mode).Limited
             ? "Solo documentos · Consulta los PDF asignados en Ajustes."
@@ -72,8 +75,10 @@ public partial class MainWindow : Window
         InitializeComponent();
         settings = BaelSettings.Load(out settingsUnreadable);
         ApplySettings();
+        SelectMode(ChatMode.Student);
         Closed += (_, _) =>
         {
+            games?.Close();
             isClosed = true;
             chatLifetime.Cancel();
             chatLifetime.Dispose();
@@ -92,7 +97,8 @@ public partial class MainWindow : Window
 
         foreach (ChatMode profile in Enum.GetValues<ChatMode>())
         {
-            mode = profile;
+            SelectMode(profile);
+            if (ActivityButtons.Children.Count != 4) throw new InvalidOperationException("Faltan actividades en el chat.");
             const string message = "Mensaje de prueba";
             int previousCount = Conversation.Items.Count;
             AddUserMessage(message);
@@ -108,6 +114,39 @@ public partial class MainWindow : Window
         OpenConversation();
         if (Chat.Visibility != Visibility.Visible || Conversation.Items.Count != Enum.GetValues<ChatMode>().Length * 2)
             throw new InvalidOperationException("El chat perdió la conversación al volver a abrirlo.");
+    }
+
+    private void UpdateActivities()
+    {
+        ActivityButtons.Children.Clear();
+        ModeDescription.Text = ModeActivities.Description(mode);
+        foreach (var activity in ModeActivities.Catalog(mode))
+        {
+            var button = new Button { Content = activity.Label, ToolTip = activity.Prompt,
+                Padding = new Thickness(10, 6, 10, 6), FontSize = 12 };
+            button.Click += async (_, _) =>
+            {
+                if (!SendButton.IsEnabled) return;
+                if (activity.Prompt is "@cups" or "@poker")
+                {
+                    if (games is null)
+                    {
+                        games = new GameWindow(settings.GetPersonality(ChatMode.Gamer));
+                        games.Owner = this;
+                        games.Topmost = Topmost;
+                        games.Closed += (_, _) => games = null;
+                        games.Comment += text => ShowReply(ChatMode.Gamer, text);
+                    }
+                    games.SelectGame(activity.Prompt == "@poker");
+                    games.Show();
+                    games.Activate();
+                    return;
+                }
+                Message.Text = activity.Prompt;
+                await SendCurrentMessage();
+            };
+            ActivityButtons.Children.Add(button);
+        }
     }
 
     private void HideChat(object sender, RoutedEventArgs e) => Hide();
@@ -199,6 +238,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (activities.TryReply(profile, message, out string activityReply))
+        {
+            ShowReply(profile, current.GetPersonality(profile).FormatLocal(profile, activityReply));
+            return;
+        }
+
         string reply = current.GetPersonality(profile).FormatLocal(profile, Responses.For(profile, message));
         if (profile == ChatMode.System &&
             (message.Contains("diagn", StringComparison.OrdinalIgnoreCase)
@@ -216,6 +261,7 @@ public partial class MainWindow : Window
         }
         if (!current.OnlineChat)
         {
+            ChatStatus.Text = "Sin conexión · actividades y guías locales. Activa una API en Ajustes para conversar libremente.";
             ShowReply(profile, reply);
             return;
         }

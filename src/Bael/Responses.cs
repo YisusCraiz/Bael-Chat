@@ -9,13 +9,17 @@ internal enum ChatMode
     Comedy,
     System,
     Math,
-    English
+    English,
+    Free,
+    Gamer
 }
 
 internal static class Responses
 {
     public static string Name(ChatMode mode) => mode switch
     {
+        ChatMode.Free => "Libre",
+        ChatMode.Gamer => "Gamer",
         ChatMode.Tarot => "Tarot",
         ChatMode.Comedy => "Comedia",
         ChatMode.System => "Sistema",
@@ -26,6 +30,8 @@ internal static class Responses
 
     public static string Sprite(ChatMode mode) => mode switch
     {
+        ChatMode.Free => "free",
+        ChatMode.Gamer => "gamer",
         ChatMode.Tarot => "tarot",
         ChatMode.Comedy => "comedy",
         ChatMode.System => "system",
@@ -36,6 +42,8 @@ internal static class Responses
 
     public static string Instruction(ChatMode mode) => mode switch
     {
+        ChatMode.Free => "Eres BAEL, un compañero curioso, cálido y cómplice. Conversa de forma natural sobre intereses, anécdotas, anime, ideas o el día del usuario. Sigue el hilo y pregunta sin convertir todo en una tarea. No inventes recuerdos. Puedes proponer historias interactivas y juegos de conversación.",
+        ChatMode.Gamer => "Eres BAEL en modo Gamer: competitivo, teatral y bromista. Reta con frases como: ¿Te atreves con 100 fichas? Todas las apuestas son fichas ficticias sin dinero real. No te burles de la situación económica del usuario. Los minijuegos de Vasos y Póker se abren desde los botones de actividades: son un espectáculo anunciado donde BAEL siempre gana. No inventes resultados ni saldos; los calcula la aplicación. Explica reglas, comenta estrategias y acepta que el usuario deje de jugar sin insistir.",
         ChatMode.Tarot => "Eres BAEL en modo tarot ficticio. Da una tirada imaginaria breve y termina con una pregunta de reflexión. No predigas hechos.",
         ChatMode.Comedy => "Eres BAEL, comediante del campus. Responde con un remate breve sobre la situación de clase, sin atacar a personas.",
         ChatMode.System => "Eres BAEL en modo Sistema. Guía al usuario con una comprobación sencilla por turno para diagnosticar problemas de Windows. Pregunta el síntoma y el error. Solo conoces lo escrito en esta conversación. No afirmes haber examinado, ejecutado comandos o reparado la PC. Prioriza comprobaciones reversibles y explica su propósito.",
@@ -49,13 +57,25 @@ internal static class Responses
         string text = message.ToLowerInvariant();
         return mode switch
         {
+            ChatMode.Free when text.Contains("anime") => "Podemos hablar de anime. ¿Qué te atrapa más: una buena historia, los personajes o las peleas? Dime uno que hayas disfrutado y qué te gustó.",
+            ChatMode.Free when text.Contains("idea") => "Inventemos un proyecto desde algo cercano: una molestia cotidiana, una afición y una función pequeña. Por ejemplo, una mascota que te ayude a repasar. ¿Qué afición quieres usar como punto de partida?",
+            ChatMode.Free => text.Contains("día") || text.Contains("dia")
+                ? "Cuéntame qué fue lo mejor y lo más pesado de tu día. ¿Con cuál empezamos?"
+                : "Aquí podemos conversar a nuestro ritmo. ¿Te apetece hablar de algo que te pasó, imaginar una historia o compartir tus gustos? Prueba Aventura espacial para una historia interactiva sin conexión.",
+            ChatMode.Gamer => "¡Bienvenido a mi mesa! Abre Vasos o Póker desde las actividades. Empiezas con 1.000 fichas ficticias por sesión. Es un espectáculo: BAEL siempre gana y lo anuncia antes de apostar. ¿Te atreves con 100 fichas imaginarias? También podemos conversar sobre videojuegos y estrategias.",
             ChatMode.Tarot => $"Tirada ficticia para «{message}»: El Ermitaño. ¿Qué podrías decidir con calma hoy?",
+            ChatMode.Comedy when text.Contains("improvisa") => "Profesor: ¿Por qué hay un unicornio en mi clase?\nBAEL: Vino por los créditos.\nProfesor: ¿Y por qué está comiéndose el examen?\nBAEL: Es que aprende por absorción.\nTu turno: ¿qué responde el profesor?",
+            ChatMode.Comedy when text.Contains("historia") => "Empiezo: el rector anunció que el examen final consistiría en enseñar a bailar a una impresora. BAEL apareció con zapatos de tap. Añade una frase y decidimos qué sale mal.",
             ChatMode.Comedy => $"Sobre «{message}»: en el campus hasta el descanso trae tarea.",
             ChatMode.System => SystemHelp(text),
+            ChatMode.Math when text.Contains("fraccion") => "Imagina dos pizzas divididas en trozos del mismo tamaño. Para sumar 1/4 y 2/4, ¿qué representan los números de abajo? Primero dime si los trozos ya tienen el mismo tamaño; después veremos qué números combinar.",
             ChatMode.Math => text.Contains('=')
                 ? "Primero identifica qué operación acompaña a la incógnita. ¿Qué operación inversa puedes aplicar a ambos lados para empezar a despejarla? Escribe tu primer paso."
                 : "Dime el ejercicio y qué has intentado. Empezamos identificando los datos y lo que te pide encontrar; después te doy una pista para tu siguiente paso.",
             ChatMode.English => EnglishHelp(text),
+            ChatMode.Student when text.Contains("plan") => "Plan breve: 5 minutos para elegir una meta, 20 para estudiar un concepto, 5 de descanso y 10 para explicarlo sin mirar. ¿Qué tema quieres poner en el primer bloque? Si usas PDF, selecciona el material en Ajustes → Documentos.",
+            ChatMode.Student when text.Contains("tarjeta") => "Hagamos una tarjeta con una pregunta delante y una explicación corta detrás. Dime el concepto que estás estudiando y qué recuerdas de él. Si quieres usar exclusivamente tus apuntes, asigna tus PDF al modo Estudiante.",
+            ChatMode.Student when text.Contains("repaso") => "Repaso activo: sin consultar tus notas, escribe en una frase qué explica el tema. ¿Qué concepto te parece central y por qué? Compararemos tu intento con el material que compartas.",
             _ => "¿Qué tema estás estudiando y qué parte te cuesta? Podemos organizar un plan y repasar el concepto. Puedes limitar este modo a tu material desde Ajustes → Documentos."
         };
     }
@@ -106,6 +126,8 @@ internal static class Responses
             return "Correcto: she studies. Ahora convierte «She studies English» en una pregunta usando does. ¿Cómo empezarías?";
         if (text.Trim().TrimEnd('.') is "studied" or "yesterday, i studied english")
             return "Bien: studied es el pasado de study. Ahora intenta escribir una frase propia con yesterday.";
+        if (text.Contains("comida") || text.Contains("mesero"))
+            return "Welcome! What would you like to order?\nSignifica: ¿Qué te gustaría pedir? Puedes empezar con ‘I would like…’ y añadir una comida. Escribe tu pedido para practicar.";
         if (text.Contains("pronunc"))
             return "Practiquemos «I study every day». Aproximación: «ai stádi évri déi». Escúchala con Leer en voz alta y repítela por partes. ¿Qué palabra quieres practicar después?";
         if (text.Contains("pasad") || text.Contains("past"))

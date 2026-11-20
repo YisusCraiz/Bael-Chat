@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="BAEL-UMAN · Conversación" Icon="Assets/bael-unicorn.ico"
-        Width="540" Height="620" MinWidth="420" MinHeight="440"
+        Width="600" Height="740" MinWidth="420" MinHeight="440"
         Topmost="True" WindowStartupLocation="Manual">
     <Grid x:Name="Chat" Margin="20">
         <Grid.RowDefinitions>
@@ -10,7 +10,8 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <Grid Margin="0,0,0,14">
+        <StackPanel Margin="0,0,0,10">
+        <Grid Margin="0,0,0,8">
             <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <StackPanel>
                 <TextBlock Text="BAEL-UMAN" FontSize="22" FontWeight="Bold" />
@@ -21,6 +22,9 @@
                 <Button Content="Ocultar" Click="HideChat" Background="White" Foreground="#594C76" />
             </StackPanel>
         </Grid>
+        <TextBlock x:Name="ModeDescription" TextWrapping="Wrap" Foreground="#776C90" Margin="0,0,0,6" />
+        <WrapPanel x:Name="ActivityButtons" />
+        </StackPanel>
         <Border Grid.Row="1" Background="White" CornerRadius="18" BorderBrush="#E9E3F2" BorderThickness="1" Padding="8">
             <Grid>
                 <TextBlock Text="Escribe tu primera pregunta para empezar."

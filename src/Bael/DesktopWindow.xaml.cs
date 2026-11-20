@@ -44,7 +44,7 @@ public partial class DesktopWindow : Window
         InitializeComponent();
         settings = chat.CurrentSettings;
         Topmost = settings.Topmost;
-        foreach (string name in new[] { "boy", "headless", "unicorn", "magic", "tarot", "comedy", "system", "math", "english" })
+        foreach (string name in new[] { "boy", "headless", "unicorn", "magic", "tarot", "comedy", "system", "math", "english", "free", "gamer" })
         {
             frames[name] = Enumerable.Range(0, 4).Select(index =>
             {
@@ -113,7 +113,7 @@ public partial class DesktopWindow : Window
 
     internal void VerifyCompanion()
     {
-        if (!AllowsTransparency || WindowStyle != WindowStyle.None || frames.Count != 9)
+        if (!AllowsTransparency || WindowStyle != WindowStyle.None || frames.Count != 11)
             throw new InvalidOperationException("La mascota no está preparada para el escritorio.");
 
         outfit = "unicorn";
@@ -144,7 +144,7 @@ public partial class DesktopWindow : Window
             throw new InvalidOperationException("La burbuja no mostró el fragmento de respuesta.");
         AnswerBubble.IsOpen = false;
         bubbleTimer.Stop();
-        if (WheelCanvas.Children.Count != 8)
+        if (WheelCanvas.Children.Count != Enum.GetValues<ChatMode>().Length + 2)
             throw new InvalidOperationException("Faltan burbujas de la rueda.");
 
         foreach (var sequence in frames.Values)
@@ -308,7 +308,7 @@ public partial class DesktopWindow : Window
     private void BuildWheel()
     {
         ChatMode[] modes = Enum.GetValues<ChatMode>();
-        for (int index = 0; index < 8; index++)
+        for (int index = 0; index < modes.Length + 2; index++)
         {
             var content = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             if (index < modes.Length)
@@ -325,12 +325,12 @@ public partial class DesktopWindow : Window
             {
                 content.Children.Add(new TextBlock
                 {
-                    Text = index == 6 ? "⚙" : "×", FontSize = 23,
+                    Text = index == modes.Length ? "⚙" : "×", FontSize = 23,
                     TextAlignment = TextAlignment.Center
                 });
                 content.Children.Add(new TextBlock
                 {
-                    Text = index == 6 ? "Ajustes" : "Salir", FontSize = 10,
+                    Text = index == modes.Length ? "Ajustes" : "Salir", FontSize = 10,
                     TextAlignment = TextAlignment.Center
                 });
             }
@@ -353,7 +353,7 @@ public partial class DesktopWindow : Window
                 Template = new ControlTemplate(typeof(Button)) { VisualTree = circle }
             };
             int slot = index;
-            string label = slot < modes.Length ? Responses.Name(modes[slot]) : slot == 6 ? "Ajustes" : "Salir";
+            string label = slot < modes.Length ? Responses.Name(modes[slot]) : slot == modes.Length ? "Ajustes" : "Salir";
             System.Windows.Automation.AutomationProperties.SetName(button, label);
             button.ToolTip = label;
             button.Click += (_, args) =>
@@ -364,14 +364,14 @@ public partial class DesktopWindow : Window
                     chat.SelectMode(modes[slot]);
                     chat.Hide();
                 }
-                else if (slot == 6)
+                else if (slot == modes.Length)
                     ShowSettings(button, args);
                 else
                     Close();
             };
-            double angle = (-90 + index * 45) * Math.PI / 180;
-            Canvas.SetLeft(button, 146 + Math.Cos(angle) * 139);
-            Canvas.SetTop(button, 146 + Math.Sin(angle) * 139);
+            double angle = (-90 + index * (360.0 / (modes.Length + 2))) * Math.PI / 180;
+            Canvas.SetLeft(button, 181 + Math.Cos(angle) * 178);
+            Canvas.SetTop(button, 181 + Math.Sin(angle) * 178);
             WheelCanvas.Children.Add(button);
         }
     }

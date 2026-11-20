@@ -33,7 +33,7 @@
         </Popup>
         <Popup x:Name="ModeWheel" PlacementTarget="{Binding ElementName=Character}" Placement="Center"
                AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade">
-            <Canvas x:Name="WheelCanvas" Width="370" Height="370" Background="{x:Null}"
+            <Canvas x:Name="WheelCanvas" Width="440" Height="440" Background="{x:Null}"
                     PreviewKeyDown="WheelKey" />
         </Popup>
     </Grid>
