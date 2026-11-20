@@ -168,3 +168,16 @@ Los sprites se generaron con el generador integrado usando el unicornio existent
 Las pruebas de Windows comprueban registro nativo, entrega de mensajes y conflictos/liberación de atajos con ventanas de prueba, las transiciones de baile, los límites de la coreografía, los nuevos PNG y el centrado de las miniaturas. Las teclas físicas, el dispositivo de sonido y el acabado visual todavía deben comprobarse en la PC del usuario.
 
 Referencias de plataforma: [RegisterHotKey](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-registerhotkey), [UnregisterHotKey](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-unregisterhotkey) y [AllowsTransparency de WPF](https://learn.microsoft.com/dotnet/api/system.windows.window.allowstransparency).
+
+
+## Más baile, tamaño y conversación espontánea
+
+Se añaden doce sprites transparentes (`Sprites/desktop/dance-8.png` a `dance-19.png`) al repertorio anterior: moonwalk, robot, dab, running man, pasos de salsa y breakdance. La rutina usa las veinte poses en catorce estilos, con un orden que se mezcla al iniciar y cambia en cada ciclo. Las doce poses nuevas se generaron con el generador integrado: misma identidad del unicornio existente, hoja 4×3, poses emparejadas de cada baile, fondo alfa transparente y celdas separadas de 320×256.
+
+Ctrl+Alt+↑ aumenta el personaje y Ctrl+Alt+↓ lo reduce, en pasos de 10%. Ambos atajos se pueden cambiar o desactivar en Ajustes → Pantalla y teclas. Allí también hay un deslizador de tamaño de 60% a 180%. La mascota se escala completa conservando proporciones, con límites al área útil de pantalla y posición corregida para quedar dentro; se guarda la preferencia. La rueda y las burbujas conservan su tamaño de lectura.
+
+En Ajustes → Compañía se puede activar la charla espontánea del modo Libre (activa inicialmente), elegir un intervalo de 30 a 900 segundos (180 por defecto) y activar la lectura con ElevenLabs (apagada inicialmente). El primer comentario puede aparecer unos 20 segundos después de entrar en Libre si no hay interacción. Sale en la burbuja y queda en el chat sin abrirlo. Se pausa al escribir, grabar, escuchar una respuesta, abrir Ajustes, jugar la aventura de Libre o bailar. Si Libre está limitado a PDF, no inicia comentarios.
+
+Con IA en línea, los comentarios aplican la personalidad e instrucciones de Libre, sin inventar que observan el escritorio o recuerdan hechos no compartidos. Usan las APIs activas y su cuota. Sin conexión o si no llega la respuesta a tiempo, hay preguntas, curiosidades estables y ocurrencias locales ajustadas al trato, tono y presencia de humor; el repertorio local no interpreta instrucciones libres. La voz opcional consume cuota de ElevenLabs. Cambiar de modo, escribir o hablar cancela un comentario pendiente. El siguiente mensaje del usuario incluye el comentario espontáneo como contexto para que la IA pueda continuar el hilo.
+
+Las pruebas verifican los cuatro atajos globales y su liberación, persistencia de los nuevos ajustes, escalas mínima/máxima y proporciones, uso de las veinte poses de baile, ritmo de comentarios, bloqueo al escribir o limitar a PDF y publicación local de un comentario sin abrir la ventana de chat. Audio y apariencia deben comprobarse en la PC real.

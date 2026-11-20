@@ -41,6 +41,7 @@ public partial class DesktopWindow : Window
     private bool dragged;
     private bool closing;
     private bool settingsOpen;
+    private readonly ChatterClock chatterClock = new();
 
     public DesktopWindow(bool testMode = false)
     {
@@ -62,7 +63,7 @@ public partial class DesktopWindow : Window
             }).ToArray();
         }
 
-        danceFrames = Enumerable.Range(0, 8).Select(index =>
+        danceFrames = Enumerable.Range(0, 20).Select(index =>
         {
             var image = new BitmapImage(); image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad;
             image.UriSource = new Uri(Path.Combine(AppContext.BaseDirectory, "Sprites", "desktop", $"dance-{index}.png"));
@@ -70,7 +71,7 @@ public partial class DesktopWindow : Window
         }).ToArray();
         if (!testMode) SourceInitialized += (_, _) =>
         {
-            shortcuts = new GlobalShortcuts(this, () => chat.TalkFromShortcut(), ToggleDance);
+            shortcuts = new GlobalShortcuts(this, () => chat.TalkFromShortcut(), ToggleDance, () => ChangeSize(0.1), () => ChangeSize(-0.1));
             ConfigureShortcuts();
         };
         chat.SpeechNoticeChanged += text => { if (!string.IsNullOrWhiteSpace(text)) ShowBubble(selectedMode, text); };
@@ -78,7 +79,8 @@ public partial class DesktopWindow : Window
         SetOutfit("boy");
         Loaded += (_, _) =>
         {
-            Left = SystemParameters.WorkArea.Right - Width - 30;
+            ApplyMascotScale();
+            Left = Math.Max(SystemParameters.WorkArea.Left, SystemParameters.WorkArea.Right - Width - 30);
             Top = SystemParameters.WorkArea.Bottom - Height;
             timer.Start();
             movementTimestamp = Stopwatch.GetTimestamp();
@@ -96,6 +98,7 @@ public partial class DesktopWindow : Window
             danceRoutine.Reset();
             dancing = false;
             selectedMode = selected;
+            chatterClock.Reset(Environment.TickCount64, settings.SpontaneousSeconds, welcome: selected == ChatMode.Free);
             transition = null;
             messages.Clear();
             lastActivity = Environment.TickCount64;
@@ -106,6 +109,8 @@ public partial class DesktopWindow : Window
         {
             settings = updated;
             Topmost = settings.Topmost;
+            ApplyMascotScale();
+            chatterClock.Reset(Environment.TickCount64, settings.SpontaneousSeconds);
             if (!settingsOpen) ConfigureShortcuts();
             if (!settings.DanceWithAudio)
             {
@@ -136,6 +141,12 @@ public partial class DesktopWindow : Window
         if (!AllowsTransparency || WindowStyle != WindowStyle.None || frames.Count != 11)
             throw new InvalidOperationException("La mascota no está preparada para el escritorio.");
 
+        var original = settings;
+        settings = settings with { MascotScale = 1.8 }; ApplyMascotScale();
+        if (Width > 540 || Width != Height || Content is not Viewbox) throw new InvalidOperationException("El tamaño del personaje perdió sus proporciones.");
+        settings = settings with { MascotScale = 0.6 }; ApplyMascotScale();
+        if (Math.Abs(Width - 180) > 0.1) throw new InvalidOperationException("El tamaño mínimo no se aplicó.");
+        settings = original; ApplyMascotScale();
         outfit = "unicorn";
         Interact();
         if (outfit != "headless")
@@ -173,11 +184,28 @@ public partial class DesktopWindow : Window
         if (WheelCanvas.Children.Count != Enum.GetValues<ChatMode>().Length + 2)
             throw new InvalidOperationException("Faltan burbujas de la rueda.");
 
-        if (danceFrames.Length != 8 || danceFrames.Any(image => image.PixelWidth == 0))
+        if (danceFrames.Length != 20 || danceFrames.Any(image => image.PixelWidth == 0))
             throw new InvalidOperationException("Faltan los sprites de baile.");
         foreach (var sequence in frames.Values)
             if (sequence.Length != 4 || sequence.Any(image => image.PixelWidth == 0))
                 throw new InvalidOperationException("Faltan fotogramas.");
+    }
+
+    private void ApplyMascotScale()
+    {
+        Rect area = SystemParameters.WorkArea;
+        double edge = Math.Min(300 * Math.Clamp(settings.MascotScale, 0.6, 1.8), Math.Min(area.Width,area.Height));
+        double center = Left + Width/2, bottom = Top + Height;
+        Width = edge; Height = edge;
+        if (!IsLoaded) return;
+        motion.Stop();
+        Left = Math.Clamp(center - Width/2,area.Left,Math.Max(area.Left,area.Right-Width));
+        Top = Math.Clamp(bottom - Height,area.Top,Math.Max(area.Top,area.Bottom-Height));
+    }
+    private void ChangeSize(double delta)
+    {
+        chat.ResizeMascot(settings.MascotScale + delta);
+        ShowBubble(selectedMode,$"Tamaño de BAEL: {settings.MascotScale:P0}. Ajustable también en Pantalla y teclas.");
     }
 
     private void ConfigureShortcuts()
@@ -210,6 +238,7 @@ public partial class DesktopWindow : Window
 
     private void Interact()
     {
+        chatterClock.Reset(Environment.TickCount64, settings.SpontaneousSeconds);
         lastActivity = Environment.TickCount64;
         transition = null;
         if (selectedMode == ChatMode.Student && outfit == "unicorn")
@@ -246,6 +275,8 @@ public partial class DesktopWindow : Window
             level, Math.Clamp(settings.DanceThreshold, 0.01, 0.30), now);
         DanceStage danceStage = danceRoutine.Update(heard, now);
         dancing = danceStage == DanceStage.Dancing;
+        if (chatterClock.Poll(now, !interacting && !danceRoutine.Active && !AnswerBubble.IsOpen && chat.CanStartSpontaneous, settings.SpontaneousSeconds))
+            _ = chat.StartSpontaneousAsync();
         if (danceRoutine.Active)
         {
             lastActivity = now;
@@ -339,6 +370,7 @@ public partial class DesktopWindow : Window
     private void ShowBubble(ChatMode mode, string reply)
     {
         if (closing) return;
+        chatterClock.Reset(Environment.TickCount64, settings.SpontaneousSeconds);
         bubbleReply = reply.Length > 180 ? reply[..177] + "…" : reply;
         bubbleCharacters = Math.Min(3, bubbleReply.Length);
         BubbleMode.Text = $"BAEL · {Responses.Name(mode)}";

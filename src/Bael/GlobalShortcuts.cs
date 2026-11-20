@@ -46,13 +46,14 @@ internal sealed class GlobalShortcuts : IDisposable
 {
     private readonly nint handle;
     private readonly HwndSource source;
-    private readonly Action talk, dance;
+    private readonly Action talk, dance, enlarge, shrink;
     private readonly HashSet<int> registered = new();
-    internal GlobalShortcuts(Window window, Action talk, Action dance)
+    internal GlobalShortcuts(Window window, Action talk, Action dance, Action? enlarge = null, Action? shrink = null)
     {
         handle = new WindowInteropHelper(window).Handle;
         source = HwndSource.FromHwnd(handle)!;
         this.talk = talk; this.dance = dance;
+        this.enlarge = enlarge ?? (() => { }); this.shrink = shrink ?? (() => { });
         source.AddHook(Receive);
     }
     internal string Apply(BaelSettings settings)
@@ -61,6 +62,8 @@ internal sealed class GlobalShortcuts : IDisposable
         var failures = new List<string>();
         Register(9101, settings.TalkShortcut, "Hablar", failures);
         Register(9102, settings.DanceShortcut, "Baile", failures);
+        Register(9103, settings.EnlargeShortcut, "Agrandar", failures);
+        Register(9104, settings.ShrinkShortcut, "Reducir", failures);
         return string.Join("\n", failures);
     }
     private void Register(int id, string text, string label, List<string> failures)
@@ -74,7 +77,8 @@ internal sealed class GlobalShortcuts : IDisposable
     {
         if (message != 0x0312 || !registered.Contains((int)wParam)) return 0;
         handled = true;
-        if ((int)wParam == 9101) talk(); else dance();
+        switch ((int)wParam)
+        { case 9101: talk(); break; case 9102: dance(); break; case 9103: enlarge(); break; case 9104: shrink(); break; }
         return 0;
     }
     internal void Suspend()
@@ -100,13 +104,14 @@ internal sealed class GlobalShortcuts : IDisposable
         {
             nint handle = new WindowInteropHelper(one).EnsureHandle();
             new WindowInteropHelper(two).EnsureHandle();
-            int spoken = 0, danced = 0;
-            using var first = new GlobalShortcuts(one, () => spoken++, () => danced++);
+            int spoken = 0, danced = 0, enlarged = 0, shrunk = 0;
+            using var first = new GlobalShortcuts(one, () => spoken++, () => danced++, () => enlarged++, () => shrunk++);
             using var second = new GlobalShortcuts(two, () => { }, () => { });
-            var settings = new BaelSettings { TalkShortcut = "Ctrl+Alt+Shift+F10", DanceShortcut = "Ctrl+Alt+Shift+F11" };
+            var settings = new BaelSettings { TalkShortcut = "Ctrl+Alt+Shift+F10", DanceShortcut = "Ctrl+Alt+Shift+F11", EnlargeShortcut = "Ctrl+Alt+Shift+F8", ShrinkShortcut = "Ctrl+Alt+Shift+F9" };
             if (first.Apply(settings).Length > 0) throw new InvalidOperationException("No se registraron los atajos de prueba.");
             SendMessage(handle, 0x0312, 9101, 0); SendMessage(handle, 0x0312, 9102, 0);
-            if (spoken != 1 || danced != 1 || second.Apply(settings).Length == 0)
+            SendMessage(handle, 0x0312, 9103, 0); SendMessage(handle, 0x0312, 9104, 0);
+            if (spoken != 1 || danced != 1 || enlarged != 1 || shrunk != 1 || second.Apply(settings).Length == 0)
                 throw new InvalidOperationException("Falló el despacho o la detección de conflictos de atajos.");
             first.Suspend();
             if (second.Apply(settings).Length > 0) throw new InvalidOperationException("No se liberaron los atajos.");
@@ -120,7 +125,11 @@ internal sealed class GlobalShortcuts : IDisposable
     {
         if (!Shortcut.TryParse("Ctrl+Alt+V",out var a) || !Shortcut.TryParse("Alt+Ctrl+V",out var b) || a!=b
             || Shortcut.TryParse("V",out _) || Shortcut.TryParse("Shift+A",out _) || Shortcut.TryParse("Ctrl+F12",out _)
-            || !Shortcut.TryParse("",out _) || !Shortcut.TryParse("F8",out _))
+            || !Shortcut.TryParse("",out _) || !Shortcut.TryParse("F8",out _) || !Shortcut.TryParse("Ctrl+Alt+Up",out _) || !Shortcut.TryParse("Ctrl+Alt+Down",out _))
             throw new InvalidOperationException("Validación de atajos incorrecta.");
+        var expected = new BaelSettings { MascotScale = 1.4, EnlargeShortcut = "Ctrl+Shift+Up", ShrinkShortcut = "Ctrl+Shift+Down", SpontaneousSeconds = 90, SpontaneousVoice = true };
+        var restored = System.Text.Json.JsonSerializer.Deserialize<BaelSettings>(System.Text.Json.JsonSerializer.Serialize(expected))!;
+        if (restored.MascotScale != 1.4 || restored.EnlargeShortcut != expected.EnlargeShortcut || restored.ShrinkShortcut != expected.ShrinkShortcut || restored.SpontaneousSeconds != 90 || !restored.SpontaneousVoice)
+            throw new InvalidOperationException("Se perdieron preferencias de tamaño o compañía.");
     }
 }

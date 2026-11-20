@@ -19,6 +19,57 @@ public partial class MainWindow : Window
     internal event Action? UserSpoke;
     internal event Action<string>? SpeechNoticeChanged;
     internal bool IsCapturingVoice => speechRequest is not null;
+    private readonly CompanionChatter companionChatter = new();
+    private CancellationTokenSource? spontaneousRequest;
+    private string lastSpontaneous = "";
+    private string spontaneousContext = "";
+    internal bool CanStartSpontaneous => !isClosed && mode == ChatMode.Free && settings.SpontaneousChat
+        && !settings.GetDocumentRule(ChatMode.Free).Limited && spontaneousRequest is null
+        && speechRequest is null && voiceRequest is null && voicePlayer is null
+        && SendButton.IsEnabled && string.IsNullOrWhiteSpace(Message.Text) && !activities.IsRunning(ChatMode.Free);
+    private void CancelSpontaneous() => spontaneousRequest?.Cancel();
+    internal void ResizeMascot(double scale)
+    {
+        settings = settings with { MascotScale = Math.Round(Math.Clamp(scale, 0.6, 1.8), 2) };
+        try { settings.Save(); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
+        { SpeechNotice = "El tamaño cambió para esta sesión, pero Windows no pudo guardar la preferencia."; }
+        SettingsChanged?.Invoke(settings);
+    }
+    internal async Task StartSpontaneousAsync()
+    {
+        if (!CanStartSpontaneous) return;
+        BaelSettings current = settings;
+        using var request = CancellationTokenSource.CreateLinkedTokenSource(chatLifetime.Token);
+        spontaneousRequest = request;
+        try
+        {
+            string reply = companionChatter.Local(current.GetPersonality(ChatMode.Free));
+            if (current.OnlineChat)
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(request.Token);
+                timeout.CancelAfter(TimeSpan.FromSeconds(20));
+                try
+                {
+                    ChatResult response = await router.ReplyAsync(current, ChatMode.Free,
+                        CompanionChatter.Prompt(current.GetPersonality(ChatMode.Free),lastSpontaneous), [], timeout.Token);
+                    if (!string.IsNullOrWhiteSpace(response.Text)) reply = response.Text;
+                }
+                catch (OperationCanceledException) when (!request.IsCancellationRequested) { }
+            }
+            if (request.IsCancellationRequested || isClosed || mode != ChatMode.Free || settings != current
+                || !string.IsNullOrWhiteSpace(Message.Text) || !SendButton.IsEnabled || speechRequest is not null) return;
+            if (reply.Length > 400) reply = reply[..397]+"…";
+            lastSpontaneous = reply;
+            spontaneousContext = reply;
+            ShowReply(ChatMode.Free, reply);
+            if (current.SpontaneousVoice) ReadAloud(this,new RoutedEventArgs());
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error) when (error is HttpRequestException or JsonException or InvalidOperationException or FormatException) { }
+        finally { if (spontaneousRequest == request) spontaneousRequest = null; }
+    }
+
     private string SpeechNotice
     {
         set { SpeechStatus.Text = value; SpeechNoticeChanged?.Invoke(value); }
@@ -47,6 +98,7 @@ public partial class MainWindow : Window
 
     internal void SelectMode(ChatMode selected)
     {
+        CancelSpontaneous();
         mode = selected;
         ModeLabel.Text = $"Modo {Responses.Name(mode).ToLowerInvariant()}";
         UpdateActivities();
@@ -64,6 +116,7 @@ public partial class MainWindow : Window
 
     internal void EditSettings(Window owner)
     {
+        CancelSpontaneous();
         var dialog = new SettingsWindow(settings, settingsUnreadable) { Owner = owner, Topmost = owner.Topmost };
         dialog.LoadAudioDevices();
         if (dialog.ShowDialog() == true)
@@ -97,8 +150,10 @@ public partial class MainWindow : Window
         settings = BaelSettings.Load(out settingsUnreadable);
         ApplySettings();
         SelectMode(ChatMode.Student);
+        Message.TextChanged += (_, _) => CancelSpontaneous();
         Closed += (_, _) =>
         {
+            CancelSpontaneous();
             games?.Close();
             isClosed = true;
             chatLifetime.Cancel();
@@ -138,6 +193,28 @@ public partial class MainWindow : Window
         OpenConversation();
         if (Chat.Visibility != Visibility.Visible || Conversation.Items.Count != Enum.GetValues<ChatMode>().Length * 2)
             throw new InvalidOperationException("El chat perdió la conversación al volver a abrirlo.");
+    }
+
+    internal async Task VerifySpontaneousAsync()
+    {
+        BaelSettings previous = settings;
+        try
+        {
+            settings = previous with { OnlineChat = false, SpontaneousChat = true, SpontaneousVoice = false,
+                DocumentRules = new Dictionary<ChatMode, DocumentRule> { [ChatMode.Free] = new() { Limited = false } } };
+            SelectMode(ChatMode.Free);
+            int before = Conversation.Items.Count;
+            if (!CanStartSpontaneous) throw new InvalidOperationException("La charla espontánea no quedó disponible.");
+            await StartSpontaneousAsync();
+            if (Conversation.Items.Count != before+1 || IsVisible || string.IsNullOrWhiteSpace(lastSpontaneous))
+                throw new InvalidOperationException("El comentario abrió el chat o no quedó guardado.");
+            Message.Text = "borrador";
+            if (CanStartSpontaneous) throw new InvalidOperationException("Un comentario interrumpiría la escritura.");
+            Message.Clear();
+            settings = settings with { DocumentRules = new Dictionary<ChatMode, DocumentRule> { [ChatMode.Free] = new() { Limited = true } } };
+            if (CanStartSpontaneous) throw new InvalidOperationException("Se ignoró el límite PDF al iniciar un comentario.");
+        }
+        finally { settings = previous; SelectMode(ChatMode.Student); }
     }
 
     private void UpdateActivities()
@@ -235,6 +312,7 @@ public partial class MainWindow : Window
         if (message.Length == 0 || !SendButton.IsEnabled)
             return;
 
+        CancelSpontaneous();
         UserSpoke?.Invoke();
         ChatMode profile = mode;
         BaelSettings current = settings;
@@ -296,7 +374,9 @@ public partial class MainWindow : Window
         ChatStatus.Text = "Consultando las APIs activas…";
         try
         {
-            ChatResult result = await router.ReplyAsync(current, profile, message, history.ToArray(), chatLifetime.Token,
+            string routedMessage = profile == ChatMode.Free && spontaneousContext.Length > 0
+                ? "Contexto: BAEL inició antes este comentario: «" + spontaneousContext + "».\nMensaje actual del usuario: " + message : message;
+            ChatResult result = await router.ReplyAsync(current, profile, routedMessage, history.ToArray(), chatLifetime.Token,
                 new Progress<string>(status => { if (!isClosed) ChatStatus.Text = status; }));
             if (isClosed)
                 return;
@@ -319,6 +399,7 @@ public partial class MainWindow : Window
                 SendButton.IsEnabled = true;
         }
 
+        if (profile == ChatMode.Free) spontaneousContext = "";
         history.Add(new ChatTurn("user", message));
         history.Add(new ChatTurn("model", reply));
         if (history.Count > 12)
@@ -345,6 +426,7 @@ public partial class MainWindow : Window
 
     private async void Talk(object sender, RoutedEventArgs e)
     {
+        CancelSpontaneous();
         if (speechRequest is not null)
         {
             if (recording) finishRecording = true;

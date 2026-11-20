@@ -15,11 +15,13 @@ public partial class App : Application
             {
                 var window = new MainWindow();
                 window.VerifyStartup();
+                await window.VerifySpontaneousAsync();
                 window.Close();
                 var companion = new DesktopWindow(testMode: true);
                 companion.VerifyCompanion();
                 companion.Close();
                 await ElevenLabsVoice.VerifyAsync();
+                CompanionChatter.Verify();
                 DanceRoutine.Verify();
                 GlobalShortcuts.Verify();
                 GlobalShortcuts.VerifyNative();

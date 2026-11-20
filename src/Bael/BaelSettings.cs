@@ -9,6 +9,12 @@ internal sealed record BaelSettings
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BAEL", "settings.dat");
 
+    public double MascotScale { get; init; } = 1;
+    public string EnlargeShortcut { get; init; } = "Ctrl+Alt+Up";
+    public string ShrinkShortcut { get; init; } = "Ctrl+Alt+Down";
+    public bool SpontaneousChat { get; init; } = true;
+    public int SpontaneousSeconds { get; init; } = 180;
+    public bool SpontaneousVoice { get; init; }
     public double ChatTransparency { get; init; } = 0.35;
     public string TalkShortcut { get; init; } = "Ctrl+Alt+V";
     public string DanceShortcut { get; init; } = "Ctrl+Alt+B";

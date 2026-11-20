@@ -56,6 +56,10 @@
                         <Slider x:Name="ChatTransparency" Minimum="0" Maximum="65" TickFrequency="5" IsSnapToTickEnabled="True" />
                         <TextBlock Text="{Binding ElementName=ChatTransparency, Path=Value, StringFormat={}{0:0}% transparente}" />
                         <TextBlock Text="0% es sólido. Más transparencia deja ver el escritorio; el texto conserva su nitidez. Arrastra el encabezado del chat para moverlo y la esquina inferior para cambiar su tamaño." TextWrapping="Wrap" Margin="0,8,0,18" />
+                        <Label Content="Tamaño del personaje" Target="{Binding ElementName=MascotScale}" Padding="0,0,0,5" />
+                        <Slider x:Name="MascotScale" Minimum="60" Maximum="180" TickFrequency="10" IsSnapToTickEnabled="True" />
+                        <TextBlock Text="{Binding ElementName=MascotScale, Path=Value, StringFormat={}{0:0}% del tamaño original}" Margin="0,0,0,8" />
+                        <TextBlock Text="El personaje conserva sus proporciones. El tamaño se limita al espacio disponible en pantalla y se recuerda al cerrar." TextWrapping="Wrap" Margin="0,0,0,18" />
                         <TextBlock Text="Atajos globales" FontSize="19" FontWeight="SemiBold" />
                         <TextBlock Text="Pulsa en un campo y presiona la combinación deseada. Usa Ctrl o Alt junto a una tecla, o una tecla F (excepto F12). Supr o Retroceso deja el atajo desactivado. Los cambios se aplican al guardar." TextWrapping="Wrap" Margin="0,8,0,12" />
                         <Label Content="Hablar sin abrir el chat" Target="{Binding ElementName=TalkShortcut}" Padding="0,0,0,5" />
@@ -64,8 +68,28 @@
                         <Label Content="Activar o desactivar el baile con audio" Target="{Binding ElementName=DanceShortcut}" Padding="0,0,0,5" />
                         <TextBox x:Name="DanceShortcut" IsReadOnly="True" PreviewKeyDown="CaptureShortcut" AutomationProperties.Name="Atajo para activar o desactivar el baile" />
                         <TextBlock Text="Alterna la detección de audio. Al sonar música o cualquier audio del dispositivo predeterminado, BAEL se disfraza de unicornio y baila en cualquier modo. Al parar, recupera su aspecto anterior." TextWrapping="Wrap" Margin="0,6,0,14" />
+                        <Label Content="Agrandar el personaje" Target="{Binding ElementName=EnlargeShortcut}" Padding="0,0,0,5" />
+                        <TextBox x:Name="EnlargeShortcut" IsReadOnly="True" PreviewKeyDown="CaptureShortcut" AutomationProperties.Name="Atajo para agrandar BAEL" />
+                        <Label Content="Reducir el personaje" Target="{Binding ElementName=ShrinkShortcut}" Padding="0,12,0,5" />
+                        <TextBox x:Name="ShrinkShortcut" IsReadOnly="True" PreviewKeyDown="CaptureShortcut" AutomationProperties.Name="Atajo para reducir BAEL" />
+                        <TextBlock Text="Ctrl + Alt + ↑ agranda y Ctrl + Alt + ↓ reduce en pasos de 10%. Puedes elegir otras combinaciones." TextWrapping="Wrap" Margin="0,7,0,12" />
                         <Button Content="Restaurar atajos predeterminados" Click="ResetShortcuts" HorizontalAlignment="Left" />
                         <TextBlock x:Name="ShortcutStatus" TextWrapping="Wrap" Foreground="#9B2929" Margin="0,10,0,0" AutomationProperties.LiveSetting="Polite" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Compañía">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="18">
+                        <TextBlock Text="BAEL también puede romper el hielo" FontSize="19" FontWeight="SemiBold" />
+                        <CheckBox x:Name="SpontaneousChat" Content="Iniciar conversaciones y compartir curiosidades en modo Libre" Margin="0,16,0,10" />
+                        <TextBlock Text="El primer comentario puede aparecer unos 20 segundos después de entrar en Libre. Los siguientes respetan el intervalo. Sale en una burbuja y se guarda en el chat, sin abrirlo automáticamente." TextWrapping="Wrap" Margin="0,0,0,14" />
+                        <Label Content="Tiempo mínimo entre comentarios" Target="{Binding ElementName=SpontaneousDelay}" Padding="0,0,0,5" />
+                        <Slider x:Name="SpontaneousDelay" Minimum="30" Maximum="900" TickFrequency="30" IsSnapToTickEnabled="True" />
+                        <TextBlock Text="{Binding ElementName=SpontaneousDelay, Path=Value, StringFormat={}{0:0} segundos}" Margin="0,0,0,12" />
+                        <CheckBox x:Name="SpontaneousVoice" Content="Leer también los comentarios espontáneos con ElevenLabs" Margin="0,0,0,12" />
+                        <TextBlock Text="Se pausa mientras escribes a BAEL, grabas, escuchas una respuesta, juegas una aventura, abres Ajustes o el personaje baila. Si limitas Libre a PDF, los comentarios espontáneos se desactivan para respetar ese límite." TextWrapping="Wrap" Margin="0,0,0,12" />
+                        <TextBlock Text="Con IA en línea activa, usa la personalidad e indicaciones del modo Libre y consume cuota de tus APIs. Sin conexión usa un repertorio local de curiosidades, preguntas y ocurrencias ajustadas al tono y humor. La lectura en voz alta también usa cuota de ElevenLabs." TextWrapping="Wrap" />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

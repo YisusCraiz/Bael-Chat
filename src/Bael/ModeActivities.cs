@@ -5,6 +5,7 @@ internal sealed record ModeActivity(string Label, string Prompt);
 internal sealed class ModeActivities
 {
     private readonly Dictionary<ChatMode, int> progress = new();
+    internal bool IsRunning(ChatMode mode) => progress.ContainsKey(mode);
     private readonly Dictionary<ChatMode, int> scores = new();
     private static readonly string[] MathQuestions =
     [

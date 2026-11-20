@@ -65,6 +65,12 @@ public partial class SettingsWindow : Window
             DocumentMode.Items.Add(Responses.Name(mode));
         }
         DocumentMode.SelectedIndex = 0;
+        MascotScale.Value = Math.Clamp(settings.MascotScale*100,60,180);
+        EnlargeShortcut.Text = settings.EnlargeShortcut;
+        ShrinkShortcut.Text = settings.ShrinkShortcut;
+        SpontaneousChat.IsChecked = settings.SpontaneousChat;
+        SpontaneousDelay.Value = Math.Clamp(settings.SpontaneousSeconds,30,900);
+        SpontaneousVoice.IsChecked = settings.SpontaneousVoice;
         ChatTransparency.Value = Math.Clamp(settings.ChatTransparency * 100, 0, 65);
         TalkShortcut.Text = settings.TalkShortcut;
         DanceShortcut.Text = settings.DanceShortcut;
@@ -133,7 +139,7 @@ public partial class SettingsWindow : Window
         ShortcutStatus.Text = "Combinación capturada. Guarda para aplicar.";
     }
     private void ResetShortcuts(object sender, RoutedEventArgs e)
-    { TalkShortcut.Text = "Ctrl+Alt+V"; DanceShortcut.Text = "Ctrl+Alt+B"; ShortcutStatus.Text = "Atajos restaurados. Guarda para aplicar."; }
+    { TalkShortcut.Text = "Ctrl+Alt+V"; DanceShortcut.Text = "Ctrl+Alt+B"; EnlargeShortcut.Text = "Ctrl+Alt+Up"; ShrinkShortcut.Text = "Ctrl+Alt+Down"; ShortcutStatus.Text = "Atajos restaurados. Guarda para aplicar."; }
 
     private void ChooseVoice(object sender, SelectionChangedEventArgs e)
     {
@@ -576,9 +582,13 @@ public partial class SettingsWindow : Window
     private void Save(object sender, RoutedEventArgs e)
     {
         if (importing) return;
-        if (!Shortcut.TryParse(TalkShortcut.Text, out var talkKey) || !Shortcut.TryParse(DanceShortcut.Text, out var danceKey)
-            || (!string.IsNullOrWhiteSpace(TalkShortcut.Text) && !string.IsNullOrWhiteSpace(DanceShortcut.Text) && talkKey == danceKey))
-        { Status.Text = "Elige dos atajos válidos y distintos, o deja uno desactivado."; return; }
+        string[] bindings = [TalkShortcut.Text, DanceShortcut.Text, EnlargeShortcut.Text, ShrinkShortcut.Text];
+        var unique = new HashSet<Shortcut>();
+        foreach (string binding in bindings)
+        {
+            if (!Shortcut.TryParse(binding, out var parsed) || (!string.IsNullOrWhiteSpace(binding) && !unique.Add(parsed)))
+            { Status.Text = "Los atajos activos deben ser válidos y distintos. Puedes borrar los que no uses."; return; }
+        }
         StoreDocumentRule();
         StorePersonality();
         StoreProfile();
@@ -595,6 +605,12 @@ public partial class SettingsWindow : Window
 
         var updated = new BaelSettings
         {
+            MascotScale = MascotScale.Value / 100,
+            EnlargeShortcut = EnlargeShortcut.Text,
+            ShrinkShortcut = ShrinkShortcut.Text,
+            SpontaneousChat = SpontaneousChat.IsChecked == true,
+            SpontaneousSeconds = (int)SpontaneousDelay.Value,
+            SpontaneousVoice = SpontaneousVoice.IsChecked == true,
             ChatTransparency = ChatTransparency.Value / 100,
             TalkShortcut = TalkShortcut.Text,
             DanceShortcut = DanceShortcut.Text,
