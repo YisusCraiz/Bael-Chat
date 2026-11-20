@@ -99,6 +99,7 @@ public partial class MainWindow : Window
     internal void SelectMode(ChatMode selected)
     {
         CancelSpontaneous();
+        if (mode != selected) activities.Stop(mode);
         mode = selected;
         ModeLabel.Text = $"Modo {Responses.Name(mode).ToLowerInvariant()}";
         UpdateActivities();
@@ -217,6 +218,27 @@ public partial class MainWindow : Window
         finally { settings = previous; SelectMode(ChatMode.Student); }
     }
 
+    internal async Task VerifyCommandsAsync()
+    {
+        BaelSettings previous = settings;
+        try
+        {
+            settings = previous with { OnlineChat = true, Profiles = [],
+                DocumentRules = Enum.GetValues<ChatMode>().ToDictionary(m => m,m => new DocumentRule { Limited = true }) };
+            foreach (ChatMode current in Enum.GetValues<ChatMode>())
+            {
+                SelectMode(current); Message.Text = "¿Qué funciones tienes?";
+                await SendCurrentMessage();
+                if (latestReply is null || !latestReply.Contains("Actividades:"))
+                    throw new InvalidOperationException("La ayuda no funcionó con un modo limitado a PDF.");
+            }
+            Message.Text = "Quiero cambiar el modo a inglés"; await SendCurrentMessage();
+            if (mode != ChatMode.English || latestReply is null || !latestReply.Contains("activado") || IsVisible)
+                throw new InvalidOperationException("El cambio local de modo falló o abrió el chat.");
+        }
+        finally { settings = previous; SelectMode(ChatMode.Student); }
+    }
+
     private void UpdateActivities()
     {
         ActivityButtons.Children.Clear();
@@ -258,6 +280,27 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             SendMessage(sender, e);
+        }
+    }
+
+    private void ExplainFunctions(object sender, RoutedEventArgs e)
+    { ShowReply(mode, AssistantCommands.Help(mode, settings)); }
+
+    private bool HandleAssistantCommand(string message)
+    {
+        var command = AssistantCommands.Parse(message);
+        switch (command.Kind)
+        {
+            case AssistantCommandKind.Help:
+                ShowReply(mode, AssistantCommands.Help(mode, settings)); return true;
+            case AssistantCommandKind.AllModes:
+            case AssistantCommandKind.ChooseMode:
+                ShowReply(mode, AssistantCommands.AllModes()); return true;
+            case AssistantCommandKind.ChangeMode when command.Target is ChatMode selected:
+                SelectMode(selected);
+                ShowReply(selected, $"Modo {Responses.Name(selected)} activado. {ModeActivities.Description(selected)}\nPuedes preguntarme: ¿qué puedes hacer?");
+                return true;
+            default: return false;
         }
     }
 
@@ -320,6 +363,8 @@ public partial class MainWindow : Window
         Message.Clear();
         Message.Focus();
         ChatStatus.Text = "";
+
+        if (HandleAssistantCommand(message)) return;
 
         if (current.GetDocumentRule(profile).Limited)
         {
@@ -463,11 +508,12 @@ public partial class MainWindow : Window
         ReadAloudButton.IsEnabled = false;
         TalkButton.Content = "Terminar frase";
         TalkLevel.Visibility = Visibility.Visible;
-        SpeechNotice = "Te escucho… Haz una pausa al terminar (máximo 30 segundos).";
+        SpeechNotice = "Preparando micrófono…";
         try
         {
-            byte[]? audio = await SpeechInput.RecordAsync(current.InputDeviceId, () => finishRecording,
-                new Progress<float>(value => { if (!isClosed) TalkLevel.Value = value; }), request.Token);
+            byte[]? audio = await SpeechInput.RecordAsync(current, () => Volatile.Read(ref finishRecording),
+                new Progress<float>(value => { if (!isClosed && speechRequest == request && recording) TalkLevel.Value = value; }),
+                new Progress<string>(text => { if (!isClosed && speechRequest == request && recording) SpeechNotice = text; }), request.Token);
             recording = false;
             if (isClosed) return;
             TalkLevel.Visibility = Visibility.Collapsed;

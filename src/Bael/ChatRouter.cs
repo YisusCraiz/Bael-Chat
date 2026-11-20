@@ -100,7 +100,7 @@ internal sealed class ChatRouter
     internal static HttpRequestMessage BuildRequest(AiProfile profile, ChatMode mode, string message,
         IReadOnlyList<ChatTurn> history, ModePersonality? personality = null)
     {
-        string instruction = Responses.Instruction(mode) + " " + (personality ?? ModePersonality.Default(mode)).Prompt() + " Responde en español salvo las frases de práctica de inglés.";
+        string instruction = Responses.Instruction(mode) + " " + (personality ?? ModePersonality.Default(mode)).Prompt() + " Responde en español salvo las frases de práctica de inglés. Los cambios de modo los ejecuta la aplicación; si no recibes una confirmación real, no afirmes haber cambiado de modo. Indica que puede decir cambia al modo seguido del nombre. No inventes funciones de la aplicación.";
         if (profile.Provider == "Gemini")
         {
             var request = new HttpRequestMessage(HttpMethod.Post,

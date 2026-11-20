@@ -44,6 +44,12 @@ public partial class SettingsWindow : Window
     {
         InitializeComponent();
         Settings = settings;
+        SettingsTheme.Apply(this,settings.UiTheme == "Oscuro");
+        ThemeChoice.ItemsSource = new[] { "Claro", "Oscuro" };
+        ThemeChoice.SelectedItem = settings.UiTheme == "Oscuro" ? "Oscuro" : "Claro";
+        SourceInitialized += (_, _) => SettingsTheme.TitleBar(this,ThemeChoice.SelectedItem as string == "Oscuro");
+        SpeechPause.Value = Math.Clamp(settings.SpeechPauseMilliseconds,600,2200);
+        SpeechThreshold.Value = Math.Clamp(settings.SpeechThreshold*100,0.1,5);
         PersonalityTone.ItemsSource = ModePersonality.Tones;
         PersonalityDetail.ItemsSource = ModePersonality.Details;
         foreach (ChatMode mode in Enum.GetValues<ChatMode>())
@@ -122,6 +128,11 @@ public partial class SettingsWindow : Window
 
         if (unreadable)
             Status.Text = "No se pudo leer la configuración anterior. Guardar creará una nueva.";
+    }
+
+    private void ChangeTheme(object sender, SelectionChangedEventArgs e)
+    {
+        if (ThemeChoice?.SelectedItem is string theme) SettingsTheme.Apply(this,theme == "Oscuro");
     }
 
     private void CaptureShortcut(object sender, KeyEventArgs e)
@@ -605,6 +616,9 @@ public partial class SettingsWindow : Window
 
         var updated = new BaelSettings
         {
+            UiTheme = ThemeChoice.SelectedItem as string ?? "Claro",
+            SpeechPauseMilliseconds = (int)SpeechPause.Value,
+            SpeechThreshold = SpeechThreshold.Value / 100,
             MascotScale = MascotScale.Value / 100,
             EnlargeShortcut = EnlargeShortcut.Text,
             ShrinkShortcut = ShrinkShortcut.Text,

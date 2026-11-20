@@ -9,6 +9,9 @@ internal sealed record BaelSettings
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BAEL", "settings.dat");
 
+    public string UiTheme { get; init; } = "Claro";
+    public int SpeechPauseMilliseconds { get; init; } = 900;
+    public double SpeechThreshold { get; init; } = 0.004;
     public double MascotScale { get; init; } = 1;
     public string EnlargeShortcut { get; init; } = "Ctrl+Alt+Up";
     public string ShrinkShortcut { get; init; } = "Ctrl+Alt+Down";

@@ -16,6 +16,7 @@ public partial class App : Application
                 var window = new MainWindow();
                 window.VerifyStartup();
                 await window.VerifySpontaneousAsync();
+                await window.VerifyCommandsAsync();
                 window.Close();
                 var companion = new DesktopWindow(testMode: true);
                 companion.VerifyCompanion();
@@ -30,6 +31,9 @@ public partial class App : Application
                 var gameWindow = new GameWindow(ModePersonality.Default(ChatMode.Gamer));
                 gameWindow.VerifyInterface();
                 gameWindow.Close();
+                AssistantCommands.Verify();
+                SettingsTheme.Verify();
+                SpeechInput.VerifyAudio();
                 SpeechSilence.Verify();
                 await SpeechInput.VerifyTranscriptionAsync();
                 PdfLibrary.Verify();

@@ -132,7 +132,7 @@ Los PDF escaneados sin texto necesitan OCR antes de importarse. Los archivos pro
 
 En Ajustes → Voz y audio selecciona el micrófono y configura una clave de ElevenLabs con acceso a Speech to Text. El modelo inicial de transcripción es scribe_v2 y se puede cambiar. La lectura usa además tu ID de voz y acceso a Text to Speech.
 
-Abre el chat y pulsa Hablar. BAEL graba una frase y termina tras una pausa de 1,6 segundos después de detectar voz, al pulsar Terminar frase o al llegar a 30 segundos. La barra muestra el nivel. El audio se mantiene en memoria y se envía a ElevenLabs para convertirlo en texto. La frase reconocida se muestra y se consulta en el modo actual, respetando sus límites de documentos.
+Abre el chat y pulsa Hablar. BAEL graba una frase y termina tras una pausa configurable (900 ms por defecto) después de detectar voz, al pulsar Terminar frase o al llegar a 30 segundos. La barra muestra el nivel. El audio se mantiene en memoria y se envía a ElevenLabs para convertirlo en texto. La frase reconocida se muestra y se consulta en el modo actual, respetando sus límites de documentos.
 
 Responder en voz alta a mis mensajes hablados activa la lectura automática de la respuesta. Puedes desactivarlo y usar Leer en voz alta manualmente. La clave debe tener cuota para transcripción y síntesis según tu plan. El micrófono se abre únicamente al pulsar Hablar.
 
@@ -181,3 +181,18 @@ En Ajustes → Compañía se puede activar la charla espontánea del modo Libre 
 Con IA en línea, los comentarios aplican la personalidad e instrucciones de Libre, sin inventar que observan el escritorio o recuerdan hechos no compartidos. Usan las APIs activas y su cuota. Sin conexión o si no llega la respuesta a tiempo, hay preguntas, curiosidades estables y ocurrencias locales ajustadas al trato, tono y presencia de humor; el repertorio local no interpreta instrucciones libres. La voz opcional consume cuota de ElevenLabs. Cambiar de modo, escribir o hablar cancela un comentario pendiente. El siguiente mensaje del usuario incluye el comentario espontáneo como contexto para que la IA pueda continuar el hilo.
 
 Las pruebas verifican los cuatro atajos globales y su liberación, persistencia de los nuevos ajustes, escalas mínima/máxima y proporciones, uso de las veinte poses de baile, ritmo de comentarios, bloqueo al escribir o limitar a PDF y publicación local de un comentario sin abrir la ventana de chat. Audio y apariencia deben comprobarse en la PC real.
+
+
+## Micrófono más ágil, temas y comandos locales
+
+La apertura y el procesamiento de audio se realizan fuera del hilo de interfaz. BAEL muestra Preparando micrófono y solo indica Te escucho después de iniciar la captura. Usa captura WASAPI por eventos con búfer solicitado de 30 ms y mide las muestras recibidas, sin depender del indicador global de Windows. El nivel mínimo inicial baja a 0,4%; la pausa de fin de frase es de 900 ms por defecto, configurable de 600 a 2.200 ms en Ajustes → Voz y audio. El nivel se puede ajustar de 0,1% a 5%. Sin voz, termina a los 8 segundos; una frase conserva el máximo de 30 segundos y el control manual de terminar/cancelar.
+
+Se conserva un margen de 250 ms alrededor de la voz, se recorta el silencio sobrante y se convierte a WAV mono PCM16 a 16 kHz antes de enviarlo a ElevenLabs. La transcripción sigue comenzando después de grabar la frase: no es transcripción en streaming. El tamaño de una señal de prueba estéreo float de 48 kHz y un segundo se reduce aproximadamente de 384 KB de muestras a 32 KB, sin acortar la duración. El tiempo real depende del micrófono, su controlador, la red y ElevenLabs.
+
+En Ajustes → Pantalla y teclas se elige Claro u Oscuro para la ventana de configuración. La vista previa cambia al instante; Guardar recuerda la elección y Cancelar conserva la anterior. Los colores de paneles, texto, campos, listas, pestañas, selección y errores usan recursos de tema. El cambio se limita a Ajustes, manteniendo el chat translúcido y la mascota. La barra de título solicita el estilo oscuro de Windows cuando está disponible.
+
+En cualquier modo, por texto o por una frase transcrita, se puede preguntar qué puedes hacer, qué funciones tienes, ayuda o qué modos tienes. BAEL responde con sus funciones reales, actividades, límites y atajos configurados. También hay un botón ¿Qué puedo hacer? en el chat.
+
+Los cambios de modo son locales: cambia al modo Inglés, quiero cambiar el modo a Sistema, ponte en modo Libre o activa el modo Gamer. Se aceptan acentos, mayúsculas y algunas variantes naturales. Si no reconoce el destino, muestra los ocho modos y no cambia a uno inventado. Una negación o una petición de traducción no se interpreta como cambio. Los comandos se atienden antes de las actividades, las APIs y la consulta PDF; la ayuda de la app no altera las restricciones del material. Cambiar de modo detiene la actividad guiada anterior y no abre por sí solo el chat.
+
+Pruebas añadidas: ayuda en los ocho modos incluso restringidos a PDF; cambio de modo desde el recorrido real de envío; variantes y negaciones; detección de voz suave, pausa configurable y espera máxima sin voz; medición PCM/float; conversión con formato, duración y tamaño verificables; colores de ambos temas. No se usan micrófonos ni claves reales en las pruebas automáticas. Queda comprobar con voz y pantalla en el equipo del usuario.
