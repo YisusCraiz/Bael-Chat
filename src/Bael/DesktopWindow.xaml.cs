@@ -143,7 +143,7 @@ public partial class DesktopWindow : Window
 
         var original = settings;
         settings = settings with { MascotScale = 1.8 }; ApplyMascotScale();
-        if (Width > 540 || Width != Height || Content is not Viewbox) throw new InvalidOperationException("El tamaño del personaje perdió sus proporciones.");
+        if (Width > 540 || Width != Height || Content is not Grid root || root.Children[0] is not Viewbox) throw new InvalidOperationException("El tamaño del personaje perdió sus proporciones.");
         settings = settings with { MascotScale = 0.6 }; ApplyMascotScale();
         if (Math.Abs(Width - 180) > 0.1) throw new InvalidOperationException("El tamaño mínimo no se aplicó.");
         settings = original; ApplyMascotScale();

@@ -5,6 +5,7 @@
         AllowsTransparency="True" Background="{x:Null}" ResizeMode="NoResize"
         ShowInTaskbar="True" Topmost="True" WindowStartupLocation="Manual"
         PreviewKeyDown="WheelKey">
+    <Grid>
     <Viewbox Stretch="Uniform">
     <Grid Width="300" Height="300">
         <Image x:Name="Character" Margin="30,30,30,25" Stretch="Uniform" RenderTransformOrigin="0.5,0.5"
@@ -19,6 +20,8 @@
                 </TransformGroup>
             </Image.RenderTransform>
         </Image>
+    </Grid>
+    </Viewbox>
         <Popup x:Name="AnswerBubble" PlacementTarget="{Binding ElementName=Character}" Placement="Top"
                AllowsTransparency="True" StaysOpen="True" PopupAnimation="Fade">
             <Border Background="#FCFAFF" CornerRadius="18" BorderBrush="#C8B7EE" BorderThickness="1"
@@ -38,5 +41,4 @@
                     PreviewKeyDown="WheelKey" />
         </Popup>
     </Grid>
-    </Viewbox>
 </Window>
