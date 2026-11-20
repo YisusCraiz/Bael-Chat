@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net.Http;
 using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
