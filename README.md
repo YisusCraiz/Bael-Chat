@@ -127,3 +127,11 @@ Abre Ajustes → Documentos y pulsa Añadir PDF. Puedes importar varios archivos
 En los modos limitados, BAEL busca términos de la pregunta en el texto extraído y muestra hasta tres pasajes con el nombre del PDF y la página. La consulta funciona localmente y no envía documentos a las APIs. Si falta material o no hay coincidencias suficientes, lo indica. Esta primera versión usa pasajes citados, sin síntesis generativa. Las búsquedas por sinónimos pueden requerir reformular la pregunta.
 
 Los PDF escaneados sin texto necesitan OCR antes de importarse. Los archivos protegidos o dañados muestran un aviso. Las copias y el índice por página se guardan en el perfil local de Windows. Cancelar los ajustes descarta los archivos nuevos preparados y las asignaciones sin guardar. Quitar de la biblioteca elimina la copia local al guardar y conserva el original.
+
+## Hablar con BAEL
+
+En Ajustes → Voz y audio selecciona el micrófono y configura una clave de ElevenLabs con acceso a Speech to Text. El modelo inicial de transcripción es scribe_v2 y se puede cambiar. La lectura usa además tu ID de voz y acceso a Text to Speech.
+
+Abre el chat y pulsa Hablar. BAEL graba una frase y termina tras una pausa de 1,6 segundos después de detectar voz, al pulsar Terminar frase o al llegar a 30 segundos. La barra muestra el nivel. El audio se mantiene en memoria y se envía a ElevenLabs para convertirlo en texto. La frase reconocida se muestra y se consulta en el modo actual, respetando sus límites de documentos.
+
+Responder en voz alta a mis mensajes hablados activa la lectura automática de la respuesta. Puedes desactivarlo y usar Leer en voz alta manualmente. La clave debe tener cuota para transcripción y síntesis según tu plan. El micrófono se abre únicamente al pulsar Hablar.

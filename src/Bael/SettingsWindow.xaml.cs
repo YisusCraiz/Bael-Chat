@@ -79,6 +79,8 @@ public partial class SettingsWindow : Window
         ProfileEditor.IsEnabled = profiles.Count > 0;
         VoiceKey.Password = settings.VoiceKey;
         VoiceId.Text = settings.VoiceId;
+        SpeechModel.Text = settings.SpeechModel;
+        SpeakVoiceReplies.IsChecked = settings.SpeakVoiceReplies;
         Closed += (_, _) =>
         {
             StopMicTest();
@@ -494,6 +496,8 @@ public partial class SettingsWindow : Window
             DocumentRules = new Dictionary<ChatMode, DocumentRule>(documentRules),
             VoiceKey = VoiceKey.Password.Trim(),
             VoiceId = VoiceId.Text.Trim(),
+            SpeechModel = string.IsNullOrWhiteSpace(SpeechModel.Text) ? "scribe_v2" : SpeechModel.Text.Trim(),
+            SpeakVoiceReplies = SpeakVoiceReplies.IsChecked == true,
             InputDeviceId = InputDevice.SelectedValue as string ?? Settings.InputDeviceId,
             OutputDeviceId = OutputDevice.SelectedValue as string ?? Settings.OutputDeviceId
         };

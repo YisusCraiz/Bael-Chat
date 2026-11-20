@@ -19,6 +19,8 @@ public partial class App : Application
                 var companion = new DesktopWindow(testMode: true);
                 companion.VerifyCompanion();
                 companion.Close();
+                SpeechSilence.Verify();
+                await SpeechInput.VerifyTranscriptionAsync();
                 PdfLibrary.Verify();
                 await ChatRouterChecks.RunAsync();
                 File.WriteAllText(resultPath, "OK");

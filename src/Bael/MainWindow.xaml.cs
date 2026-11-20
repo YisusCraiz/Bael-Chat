@@ -62,6 +62,9 @@ public partial class MainWindow : Window
     private CancellationTokenSource? voiceRequest;
     private string? latestReply;
     private bool isClosed;
+    private CancellationTokenSource? speechRequest;
+    private bool recording;
+    private bool finishRecording;
     private ChatMode mode = ChatMode.Student;
 
     public MainWindow()
@@ -75,6 +78,7 @@ public partial class MainWindow : Window
             chatLifetime.Cancel();
             chatLifetime.Dispose();
             voiceRequest?.Cancel();
+            speechRequest?.Cancel();
             ReleaseAudio();
         };
     }
@@ -158,7 +162,9 @@ public partial class MainWindow : Window
         EditSettings(this);
     }
 
-    private async void SendMessage(object sender, RoutedEventArgs e)
+    private async void SendMessage(object sender, RoutedEventArgs e) => await SendCurrentMessage();
+
+    private async Task SendCurrentMessage()
     {
         string message = Message.Text.Trim();
         if (message.Length == 0 || !SendButton.IsEnabled)
@@ -263,6 +269,110 @@ public partial class MainWindow : Window
         Conversation.Items.Add(line);
         Conversation.ScrollIntoView(line);
         ReplyReady?.Invoke(profile, reply);
+    }
+
+    private async void Talk(object sender, RoutedEventArgs e)
+    {
+        if (speechRequest is not null)
+        {
+            if (recording) finishRecording = true;
+            else speechRequest.Cancel();
+            return;
+        }
+
+        if (!SendButton.IsEnabled || voiceRequest is not null)
+        {
+            SpeechStatus.Text = "Espera a que termine la respuesta actual.";
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(Message.Text))
+        {
+            SpeechStatus.Text = "Envía o borra el texto del cuadro antes de grabar.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(settings.EffectiveVoiceKey))
+        {
+            SpeechStatus.Text = "Agrega la clave de ElevenLabs en Ajustes → Voz y audio.";
+            return;
+        }
+
+        EndPlayback("");
+        BaelSettings current = settings;
+        using var request = CancellationTokenSource.CreateLinkedTokenSource(chatLifetime.Token);
+        speechRequest = request;
+        finishRecording = false;
+        recording = true;
+        SendButton.IsEnabled = false;
+        Modes.IsEnabled = false;
+        Message.IsReadOnly = true;
+        ReadAloudButton.IsEnabled = false;
+        TalkButton.Content = "Terminar frase";
+        TalkLevel.Visibility = Visibility.Visible;
+        SpeechStatus.Text = "Te escucho… Haz una pausa al terminar (máximo 30 segundos).";
+        try
+        {
+            byte[]? audio = await SpeechInput.RecordAsync(current.InputDeviceId, () => finishRecording,
+                new Progress<float>(value => { if (!isClosed) TalkLevel.Value = value; }), request.Token);
+            recording = false;
+            if (isClosed) return;
+            TalkLevel.Visibility = Visibility.Collapsed;
+            if (audio is null)
+            {
+                SpeechStatus.Text = "No detecté voz. Revisa el micrófono seleccionado y sus permisos.";
+                return;
+            }
+
+            TalkButton.Content = "Cancelar";
+            SpeechStatus.Text = "Transcribiendo con ElevenLabs…";
+            string? text = await SpeechInput.TranscribeAsync(current, audio, request.Token);
+            if (isClosed) return;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                SpeechStatus.Text = "No se reconoció una frase. Pulsa Hablar e intenta otra vez.";
+                return;
+            }
+
+            Message.Text = text;
+            SpeechStatus.Text = $"Te entendí: {text}";
+            SendButton.IsEnabled = true;
+            TalkButton.IsEnabled = false;
+            await SendCurrentMessage();
+            if (!isClosed && current.SpeakVoiceReplies && latestReply is not null)
+                ReadAloud(this, new RoutedEventArgs());
+        }
+        catch (OperationCanceledException)
+        {
+            if (!isClosed) SpeechStatus.Text = request.IsCancellationRequested
+                ? "Grabación o transcripción cancelada." : "La transcripción tardó demasiado. Intenta otra vez.";
+        }
+        catch (HttpRequestException error)
+        {
+            if (!isClosed) SpeechStatus.Text = error.StatusCode is { } status
+                ? $"ElevenLabs devolvió {(int)status}. Revisa el permiso Speech to Text, el modelo y la cuota de la clave."
+                : "No se pudo conectar con ElevenLabs para transcribir.";
+        }
+        catch (Exception error) when (error is System.Runtime.InteropServices.COMException
+                                      or InvalidOperationException or UnauthorizedAccessException
+                                      or IOException or TimeoutException or JsonException or NAudio.MmException)
+        {
+            if (!isClosed) SpeechStatus.Text = "No se pudo completar la entrada de voz. Revisa el micrófono, los permisos y el modelo de transcripción.";
+        }
+        finally
+        {
+            recording = false;
+            speechRequest = null;
+            if (!isClosed)
+            {
+                TalkButton.Content = "🎙 Hablar";
+                TalkButton.IsEnabled = true;
+                SendButton.IsEnabled = true;
+                Modes.IsEnabled = true;
+                Message.IsReadOnly = false;
+                ReadAloudButton.IsEnabled = latestReply is not null;
+                TalkLevel.Visibility = Visibility.Collapsed;
+                TalkLevel.Value = 0;
+            }
+        }
     }
 
     private async void ReadAloud(object sender, RoutedEventArgs e)

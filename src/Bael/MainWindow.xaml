@@ -80,11 +80,16 @@
             <DockPanel Margin="0,7,0,0">
                 <Button x:Name="SendButton" Content="Enviar ↗" DockPanel.Dock="Right" Click="SendMessage" />
                 <WrapPanel>
+                    <Button x:Name="TalkButton" Content="🎙 Hablar" Click="Talk"
+                            ToolTip="Pulsa para grabar. Termina al hacer una pausa o pulsar de nuevo." />
                     <Button x:Name="ReadAloudButton" Content="Leer en voz alta" IsEnabled="False" Click="ReadAloud"
                             Background="White" Foreground="#594C76" />
                     <Button Content="Copiar respuesta" Click="CopyReply" Background="White" Foreground="#594C76" />
                 </WrapPanel>
             </DockPanel>
+            <ProgressBar x:Name="TalkLevel" Height="5" Maximum="1" Visibility="Collapsed" Margin="0,6,0,0" />
+            <TextBlock x:Name="SpeechStatus" TextWrapping="Wrap" Foreground="#665391" Margin="0,5,0,0"
+                       AutomationProperties.LiveSetting="Polite" />
             <TextBlock x:Name="VoiceStatus" TextWrapping="Wrap" Foreground="#776C90" Margin="0,4,0,0"
                        AutomationProperties.LiveSetting="Polite" />
         </StackPanel>
