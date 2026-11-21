@@ -20,6 +20,9 @@
                 </TransformGroup>
             </Image.RenderTransform>
         </Image>
+        <Border x:Name="ActivityBadge" Visibility="Collapsed" IsHitTestVisible="False" VerticalAlignment="Top" Margin="30,2,30,0" Background="#F2FAF7FF" BorderBrush="#B8A4DE" BorderThickness="1" CornerRadius="12" Padding="8,5">
+            <TextBlock x:Name="ActivityBadgeText" TextAlignment="Center" FontSize="11" FontWeight="SemiBold" Foreground="#574077" />
+        </Border>
     </Grid>
     </Viewbox>
         <Popup x:Name="AnswerBubble" PlacementTarget="{Binding ElementName=Character}" Placement="Top"

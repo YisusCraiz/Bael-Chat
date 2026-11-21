@@ -1,4 +1,6 @@
 using System.IO;
+using System.Diagnostics;
+using System.Windows.Threading;
 using System.Net.Http;
 using System.Text.Json;
 using NAudio.CoreAudioApi;
@@ -19,6 +21,38 @@ public partial class MainWindow : Window
     internal event Action? UserSpoke;
     internal event Action<string>? SpeechNoticeChanged;
     internal bool IsCapturingVoice => speechRequest is not null;
+    internal event Action<AssistantStage>? ActivityChanged;
+    private AssistantStage speechStage;
+    private bool waitingForReply;
+    private AssistantStage displayedStage;
+    private long activityStarted = Stopwatch.GetTimestamp();
+    private readonly DispatcherTimer activityTimer = new() { Interval = TimeSpan.FromMilliseconds(120) };
+    private ConversationTimings timings = new();
+    private CancellationTokenSource? replyRequest;
+    internal AssistantStage CurrentStage => speechStage != AssistantStage.Idle ? speechStage
+        : waitingForReply ? AssistantStage.Thinking : voicePlayer is not null ? AssistantStage.Speaking
+        : voiceRequest is not null ? AssistantStage.GeneratingVoice : AssistantStage.Idle;
+    private void RefreshActivity()
+    {
+        if (isClosed) return;
+        AssistantStage stage = CurrentStage;
+        if (stage != displayedStage)
+        { displayedStage = stage; activityStarted = Stopwatch.GetTimestamp(); ActivityChanged?.Invoke(stage); }
+        ActivityStatus.Text = ConversationActivity.Label(stage) + (stage == AssistantStage.Idle ? "" : $" · {Stopwatch.GetElapsedTime(activityStarted).TotalSeconds:0.0} s");
+        TimingStatus.Text = timings.Summary;
+        StopInteractionButton.IsEnabled = stage != AssistantStage.Idle;
+        if (stage == AssistantStage.Idle) activityTimer.Stop(); else if (!activityTimer.IsEnabled) activityTimer.Start();
+    }
+    private void StopInteraction(object sender, RoutedEventArgs e)
+    {
+        CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
+        SpeechNotice = "Interacción detenida. Puedes volver a hablar cuando aparezca Listo.";
+    }
+    private void CopyTimings(object sender, RoutedEventArgs e)
+    {
+        try { Clipboard.SetText(timings.Summary.Length == 0 ? "Todavía no hay tiempos medidos." : timings.Summary); }
+        catch (System.Runtime.InteropServices.COMException) { ChatStatus.Text = "El portapapeles está ocupado."; }
+    }
     private readonly CompanionChatter companionChatter = new();
     private CancellationTokenSource? spontaneousRequest;
     private string lastSpontaneous = "";
@@ -26,7 +60,7 @@ public partial class MainWindow : Window
     internal bool CanStartSpontaneous => !isClosed && mode == ChatMode.Free && settings.SpontaneousChat
         && !settings.GetDocumentRule(ChatMode.Free).Limited && spontaneousRequest is null
         && speechRequest is null && voiceRequest is null && voicePlayer is null
-        && SendButton.IsEnabled && string.IsNullOrWhiteSpace(Message.Text) && !activities.IsRunning(ChatMode.Free);
+        && CurrentStage == AssistantStage.Idle && !waitingForReply && SendButton.IsEnabled && string.IsNullOrWhiteSpace(Message.Text) && !activities.IsRunning(ChatMode.Free);
     private void CancelSpontaneous() => spontaneousRequest?.Cancel();
     internal void ResizeMascot(double scale)
     {
@@ -63,7 +97,7 @@ public partial class MainWindow : Window
             lastSpontaneous = reply;
             spontaneousContext = reply;
             ShowReply(ChatMode.Free, reply);
-            if (current.SpontaneousVoice) ReadAloud(this,new RoutedEventArgs());
+            if (current.SpontaneousVoice) { timings = new ConversationTimings(); _ = ReadAloudAsync(); }
         }
         catch (OperationCanceledException) { }
         catch (Exception error) when (error is HttpRequestException or JsonException or InvalidOperationException or FormatException) { }
@@ -91,7 +125,7 @@ public partial class MainWindow : Window
 
     internal event Action<ChatMode, string>? ReplyReady;
     internal event Action<ChatMode>? ModeChanged;
-    private readonly ChatRouter router = new();
+    private ChatRouter router = new();
     private readonly ModeActivities activities = new();
     private GameWindow? games;
     private readonly Dictionary<ChatMode, List<ChatTurn>> histories = new();
@@ -99,7 +133,7 @@ public partial class MainWindow : Window
     internal void SelectMode(ChatMode selected)
     {
         CancelSpontaneous();
-        if (mode != selected) activities.Stop(mode);
+        if (mode != selected) { activities.Stop(mode); replyRequest?.Cancel(); StopVoice(); }
         mode = selected;
         ModeLabel.Text = $"Modo {Responses.Name(mode).ToLowerInvariant()}";
         UpdateActivities();
@@ -117,7 +151,7 @@ public partial class MainWindow : Window
 
     internal void EditSettings(Window owner)
     {
-        CancelSpontaneous();
+        CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
         var dialog = new SettingsWindow(settings, settingsUnreadable) { Owner = owner, Topmost = owner.Topmost };
         dialog.LoadAudioDevices();
         if (dialog.ShowDialog() == true)
@@ -151,12 +185,16 @@ public partial class MainWindow : Window
         settings = BaelSettings.Load(out settingsUnreadable);
         ApplySettings();
         SelectMode(ChatMode.Student);
+        activityTimer.Tick += (_, _) => RefreshActivity();
+        RefreshActivity();
         Message.TextChanged += (_, _) => CancelSpontaneous();
         Closed += (_, _) =>
         {
             CancelSpontaneous();
             games?.Close();
             isClosed = true;
+            activityTimer.Stop();
+            replyRequest?.Cancel();
             chatLifetime.Cancel();
             chatLifetime.Dispose();
             voiceRequest?.Cancel();
@@ -237,6 +275,35 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException("El cambio local de modo falló o abrió el chat.");
         }
         finally { settings = previous; SelectMode(ChatMode.Student); }
+    }
+
+    internal async Task VerifyReplyCancellationAsync()
+    {
+        BaelSettings previous = settings; ChatRouter previousRouter = router;
+        try
+        {
+            settings = previous with { OnlineChat = true,
+                Profiles = [new AiProfile { Provider = "Groq", Model = "test", Key = "fake", Enabled = true }],
+                DocumentRules = new Dictionary<ChatMode,DocumentRule> { [ChatMode.Free] = new() { Limited = false } } };
+            foreach (bool changeMode in new[] { false,true })
+            {
+                var handler = new PendingReplyHandler();
+                using var client = new HttpClient(handler); router = new ChatRouter(client);
+                SelectMode(ChatMode.Free);
+                int before = Conversation.Items.Count; string? previousReply = latestReply;
+                Message.Text = "Pregunta de prueba";
+                Task<bool> pending = SendCurrentMessage();
+                if (CurrentStage != AssistantStage.Thinking || !handler.Requested)
+                    throw new InvalidOperationException("No se inició la consulta cancelable.");
+                if (changeMode) SelectMode(ChatMode.English); else StopInteraction(this,new RoutedEventArgs());
+                handler.Result.SetResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                { Content = new StringContent("{\"choices\":[{\"message\":{\"content\":\"Esta respuesta debe descartarse\"}}]}") });
+                bool answered = await pending;
+                if (answered || CurrentStage != AssistantStage.Idle || Conversation.Items.Count != before+1 || latestReply != previousReply)
+                    throw new InvalidOperationException("Una respuesta cancelada se publicó o dejó la app ocupada.");
+            }
+        }
+        finally { router = previousRouter; settings = previous; SelectMode(ChatMode.Student); }
     }
 
     private void UpdateActivities()
@@ -349,107 +416,76 @@ public partial class MainWindow : Window
 
     private async void SendMessage(object sender, RoutedEventArgs e) => await SendCurrentMessage();
 
-    private async Task SendCurrentMessage()
+    private async Task<bool> SendCurrentMessage(bool fromSpeech = false)
     {
         string message = Message.Text.Trim();
-        if (message.Length == 0 || !SendButton.IsEnabled)
-            return;
-
+        if (message.Length == 0 || !SendButton.IsEnabled) return false;
         CancelSpontaneous();
+        StopVoice();
+        if (!fromSpeech) timings = new ConversationTimings();
         UserSpoke?.Invoke();
         ChatMode profile = mode;
         BaelSettings current = settings;
-        AddUserMessage(message);
-        Message.Clear();
-        Message.Focus();
-        ChatStatus.Text = "";
-
-        if (HandleAssistantCommand(message)) return;
-
-        if (current.GetDocumentRule(profile).Limited)
-        {
-            SendButton.IsEnabled = false;
-            ChatStatus.Text = "Buscando en tus PDF…";
-            try
-            {
-                string answer = await Task.Run(() => PdfLibrary.Answer(current, profile, message), chatLifetime.Token);
-                if (!isClosed)
-                {
-                    ShowReply(profile, answer);
-                    ChatStatus.Text = "Solo documentos · Pasajes del material seleccionado";
-                }
-            }
-            catch (OperationCanceledException) when (isClosed) { }
-            finally
-            {
-                if (!isClosed) SendButton.IsEnabled = true;
-            }
-            return;
-        }
-
-        if (activities.TryReply(profile, message, out string activityReply))
-        {
-            ShowReply(profile, current.GetPersonality(profile).FormatLocal(profile, activityReply));
-            return;
-        }
-
-        string reply = current.GetPersonality(profile).FormatLocal(profile, Responses.For(profile, message));
-        if (profile == ChatMode.System &&
-            (message.Contains("diagn", StringComparison.OrdinalIgnoreCase)
-             || message.Contains("examina", StringComparison.OrdinalIgnoreCase)
-             || message.Contains("revisa", StringComparison.OrdinalIgnoreCase)))
-        {
-            ShowReply(profile, reply);
-            return;
-        }
-
-        if (!histories.TryGetValue(profile, out var history))
-        {
-            history = new List<ChatTurn>();
-            histories[profile] = history;
-        }
-        if (!current.OnlineChat)
-        {
-            ChatStatus.Text = "Sin conexión · actividades y guías locales. Activa una API en Ajustes para conversar libremente.";
-            ShowReply(profile, reply);
-            return;
-        }
-
-        SendButton.IsEnabled = false;
-        ChatStatus.Text = "Consultando las APIs activas…";
+        AddUserMessage(message); Message.Clear(); Message.Focus(); ChatStatus.Text = "";
+        if (HandleAssistantCommand(message)) { RefreshActivity(); return true; }
+        bool limited = current.GetDocumentRule(profile).Limited;
+        if (!limited && activities.TryReply(profile,message,out string activityReply))
+        { ShowReply(profile,current.GetPersonality(profile).FormatLocal(profile,activityReply)); return true; }
+        string reply = current.GetPersonality(profile).FormatLocal(profile,Responses.For(profile,message));
+        if (!limited && profile == ChatMode.System && (message.Contains("diagn",StringComparison.OrdinalIgnoreCase)
+            || message.Contains("examina",StringComparison.OrdinalIgnoreCase) || message.Contains("revisa",StringComparison.OrdinalIgnoreCase)))
+        { ShowReply(profile,reply); return true; }
+        if (!limited && !current.OnlineChat)
+        { ChatStatus.Text = "Sin conexión · actividades y guías locales."; ShowReply(profile,reply); return true; }
+        if (!histories.TryGetValue(profile,out var history)) { history = []; histories[profile] = history; }
+        using var request = CancellationTokenSource.CreateLinkedTokenSource(chatLifetime.Token);
+        replyRequest = request; waitingForReply = true; SendButton.IsEnabled = false;
+        ConversationTimings measured = timings;
+        long started = Stopwatch.GetTimestamp();
+        ChatStatus.Text = limited ? "Buscando en tus PDF…" : "Consultando las APIs activas…";
+        RefreshActivity();
         try
         {
-            string routedMessage = profile == ChatMode.Free && spontaneousContext.Length > 0
-                ? "Contexto: BAEL inició antes este comentario: «" + spontaneousContext + "».\nMensaje actual del usuario: " + message : message;
-            ChatResult result = await router.ReplyAsync(current, profile, routedMessage, history.ToArray(), chatLifetime.Token,
-                new Progress<string>(status => { if (!isClosed) ChatStatus.Text = status; }));
-            if (isClosed)
-                return;
-
-            if (!string.IsNullOrWhiteSpace(result.Text))
-                reply = result.Text;
-            ChatStatus.Text = result.Status;
+            if (limited)
+            {
+                reply = await Task.Run(() => PdfLibrary.Answer(current,profile,message),request.Token);
+                request.Token.ThrowIfCancellationRequested();
+                ChatStatus.Text = "Solo documentos · Pasajes del material seleccionado";
+            }
+            else
+            {
+                string routedMessage = profile == ChatMode.Free && spontaneousContext.Length > 0
+                    ? "Contexto: BAEL inició antes este comentario: «" + spontaneousContext + "».\nMensaje actual del usuario: " + message : message;
+                ChatResult result = await router.ReplyAsync(current,profile,routedMessage,history.ToArray(),request.Token,
+                    new Progress<string>(status => { if (!isClosed && replyRequest == request && !request.IsCancellationRequested) ChatStatus.Text = status; }));
+                if (!string.IsNullOrWhiteSpace(result.Text)) reply = result.Text;
+                ChatStatus.Text = result.Status;
+            }
+            if (isClosed || request.IsCancellationRequested || mode != profile) return false;
+            if (!limited)
+            {
+                if (profile == ChatMode.Free) spontaneousContext = "";
+                history.Add(new ChatTurn("user",message)); history.Add(new ChatTurn("model",reply));
+                if (history.Count > 12) history.RemoveRange(0,history.Count-12);
+            }
+            ShowReply(profile,reply); return true;
         }
-        catch (Exception error) when (error is HttpRequestException or OperationCanceledException
-                                      or FormatException or JsonException or InvalidOperationException)
+        catch (OperationCanceledException) when (request.IsCancellationRequested)
+        { if (!isClosed) ChatStatus.Text = "Respuesta cancelada. Puedes enviar otra pregunta."; return false; }
+        catch (Exception error) when (error is HttpRequestException or OperationCanceledException or FormatException or JsonException or InvalidOperationException)
         {
-            if (isClosed)
-                return;
-
-            ChatStatus.Text = "Las APIs no respondieron. Revisa Ajustes. Se mostró una guía local.";
+            if (isClosed || request.IsCancellationRequested || mode != profile) return false;
+            ChatStatus.Text = "No llegó la respuesta. Se mostró una guía local.";
+            if (!limited) { ShowReply(profile,reply); return true; }
+            return false;
         }
         finally
         {
-            if (!isClosed)
-                SendButton.IsEnabled = true;
+            measured.Finish(limited ? "PDF" : "IA",started);
+            if (replyRequest == request)
+            { replyRequest = null; waitingForReply = false; if (!isClosed) SendButton.IsEnabled = true; }
+            RefreshActivity();
         }
-
-        if (profile == ChatMode.Free) spontaneousContext = "";
-        history.Add(new ChatTurn("user", message));
-        history.Add(new ChatTurn("model", reply));
-        if (history.Count > 12)
-            history.RemoveRange(0, history.Count - 12);
-        ShowReply(profile, reply);
     }
 
     private void AddUserMessage(string message)
@@ -469,17 +505,19 @@ public partial class MainWindow : Window
         ReplyReady?.Invoke(profile, reply);
     }
 
-    private async void Talk(object sender, RoutedEventArgs e)
+    private async void Talk(object sender, RoutedEventArgs e) => await TalkAsync();
+
+    private async Task TalkAsync(Func<CancellationToken,Task<byte[]?>>? recorder = null)
     {
         CancelSpontaneous();
         if (speechRequest is not null)
         {
             if (recording) finishRecording = true;
-            else speechRequest.Cancel();
+            else { speechRequest.Cancel(); replyRequest?.Cancel(); StopVoice(); }
             return;
         }
 
-        if (!SendButton.IsEnabled || voiceRequest is not null)
+        if (!SendButton.IsEnabled)
         {
             SpeechNotice = "Espera a que termine la respuesta actual.";
             return;
@@ -495,12 +533,18 @@ public partial class MainWindow : Window
             return;
         }
 
-        EndPlayback("");
+        StopVoice();
+        timings = new ConversationTimings();
+        ConversationTimings measured = timings;
+        long captureStarted = Stopwatch.GetTimestamp();
+        long? readyAt = null;
         BaelSettings current = settings;
         using var request = CancellationTokenSource.CreateLinkedTokenSource(chatLifetime.Token);
         speechRequest = request;
         finishRecording = false;
         recording = true;
+        speechStage = AssistantStage.PreparingMicrophone;
+        RefreshActivity();
         UserSpoke?.Invoke();
         SendButton.IsEnabled = false;
         Modes.IsEnabled = false;
@@ -511,11 +555,20 @@ public partial class MainWindow : Window
         SpeechNotice = "Preparando micrófono…";
         try
         {
-            byte[]? audio = await SpeechInput.RecordAsync(current, () => Volatile.Read(ref finishRecording),
+            byte[]? audio = await (recorder is not null ? recorder(request.Token) : SpeechInput.RecordAsync(current, () => Volatile.Read(ref finishRecording),
                 new Progress<float>(value => { if (!isClosed && speechRequest == request && recording) TalkLevel.Value = value; }),
-                new Progress<string>(text => { if (!isClosed && speechRequest == request && recording) SpeechNotice = text; }), request.Token);
+                new Progress<string>(text =>
+                {
+                    if (!isClosed && speechRequest == request && recording)
+                    {
+                        if (readyAt is null)
+                        { measured.Finish("Abrir micro",captureStarted); readyAt = Stopwatch.GetTimestamp(); }
+                        speechStage = AssistantStage.Listening; SpeechNotice = text; RefreshActivity();
+                    }
+                }), request.Token));
+            measured.Finish("Grabar",readyAt ?? captureStarted);
             recording = false;
-            if (isClosed) return;
+            if (isClosed || request.IsCancellationRequested) return;
             TalkLevel.Visibility = Visibility.Collapsed;
             if (audio is null)
             {
@@ -524,9 +577,12 @@ public partial class MainWindow : Window
             }
 
             TalkButton.Content = "Cancelar";
+            speechStage = AssistantStage.Transcribing; RefreshActivity();
+            long transcribingStarted = Stopwatch.GetTimestamp();
             SpeechNotice = "Transcribiendo con ElevenLabs…";
             string? text = await SpeechInput.TranscribeAsync(current, audio, request.Token);
-            if (isClosed) return;
+            measured.Finish("Transcribir",transcribingStarted);
+            if (isClosed || request.IsCancellationRequested) return;
             if (string.IsNullOrWhiteSpace(text))
             {
                 SpeechNotice = "No se reconoció una frase. Pulsa Hablar e intenta otra vez.";
@@ -537,9 +593,10 @@ public partial class MainWindow : Window
             SpeechNotice = $"Te entendí: {text}";
             SendButton.IsEnabled = true;
             TalkButton.IsEnabled = false;
-            await SendCurrentMessage();
-            if (!isClosed && current.SpeakVoiceReplies && latestReply is not null)
-                ReadAloud(this, new RoutedEventArgs());
+            speechStage = AssistantStage.Idle; RefreshActivity();
+            bool answered = await SendCurrentMessage(fromSpeech:true);
+            if (!isClosed && !request.IsCancellationRequested && answered && current.SpeakVoiceReplies && latestReply is not null)
+                _ = ReadAloudAsync();
         }
         catch (OperationCanceledException)
         {
@@ -561,7 +618,8 @@ public partial class MainWindow : Window
         finally
         {
             recording = false;
-            speechRequest = null;
+            if (speechRequest == request) { speechRequest = null; speechStage = AssistantStage.Idle; }
+            RefreshActivity();
             if (!isClosed)
             {
                 TalkButton.Content = "🎙 Hablar";
@@ -576,65 +634,95 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void ReadAloud(object sender, RoutedEventArgs e)
+    private async void ReadAloud(object sender, RoutedEventArgs e) => await ReadAloudAsync();
+
+    private bool OwnsVoice(CancellationTokenSource request) => !isClosed && voiceRequest == request && !request.IsCancellationRequested;
+    private void StopVoice()
     {
-        if (voiceRequest is not null)
-        {
-            voiceRequest.Cancel();
-            return;
-        }
-
-        if (voicePlayer is not null)
-        {
-            EndPlayback("");
-            return;
-        }
-
-        if (latestReply is not string text)
-            return;
-
-        using var request = new CancellationTokenSource();
+        var previous = voiceRequest; voiceRequest = null; previous?.Cancel();
+        EndPlayback(""); RefreshActivity();
+    }
+    private async Task ReadAloudAsync(Func<CancellationToken,Task<byte[]>>? generator = null)
+    {
+        if (voiceRequest is not null || voicePlayer is not null) { StopVoice(); return; }
+        if (latestReply is not string text || isClosed) return;
+        using var request = CancellationTokenSource.CreateLinkedTokenSource(chatLifetime.Token);
         voiceRequest = request;
-        ReadAloudButton.Content = "Cancelar";
-        VoiceStatus.Text = "Generando audio…";
+        ConversationTimings measured = timings;
+        long started = Stopwatch.GetTimestamp();
+        ReadAloudButton.Content = "Detener generación";
+        VoiceStatus.Text = "Generando audio… Puedes pulsar Hablar para interrumpir.";
+        RefreshActivity();
         try
         {
-            byte[] audio = await ElevenLabsVoice.GenerateAsync(settings, text, request.Token);
-            request.Token.ThrowIfCancellationRequested();
-
+            byte[] audio = await (generator is null ? ElevenLabsVoice.GenerateAsync(settings,text,request.Token) : generator(request.Token));
+            if (!OwnsVoice(request)) return;
+            measured.Finish("Preparar voz",started);
             StartPlayback(audio);
         }
         catch (OperationCanceledException)
-        {
-            if (!isClosed)
-                EndPlayback(request.IsCancellationRequested ? "" : "ElevenLabs tardó demasiado. Intenta de nuevo.");
-        }
+        { if (OwnsVoice(request)) EndPlayback("La generación de voz tardó demasiado. Intenta otra vez."); }
         catch (HttpRequestException error)
-        {
-            EndPlayback(error.StatusCode is { } status
-                ? $"ElevenLabs devolvió el código {(int)status}. Revisa la clave, la voz y el saldo."
-                : "No se pudo conectar con ElevenLabs.");
-        }
-        catch (InvalidOperationException error)
-        {
-            EndPlayback(error.Message);
-        }
+        { VoiceError(request,error.StatusCode is { } code ? $"ElevenLabs devolvió {(int)code}. Revisa la conexión de voz." : "No se pudo conectar con ElevenLabs."); }
+        catch (InvalidOperationException error) { VoiceError(request,error.Message); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or FormatException
                                       or System.Runtime.InteropServices.COMException or NAudio.MmException)
-        {
-            EndPlayback("No se pudo reproducir el audio. Revisa el dispositivo de salida en Ajustes.");
-        }
+        { VoiceError(request,"No se pudo reproducir el audio. Revisa el dispositivo de salida en Ajustes."); }
         finally
         {
-            voiceRequest = null;
+            if (voiceRequest == request) voiceRequest = null;
+            RefreshActivity();
         }
     }
-
+    private void VoiceError(CancellationTokenSource request,string message)
+    {
+        if (!OwnsVoice(request)) return;
+        EndPlayback(message); SpeechNoticeChanged?.Invoke("Voz: "+message);
+    }
     private void EndPlayback(string status)
     {
         ReleaseAudio();
+        if (isClosed) return;
         ReadAloudButton.Content = "Leer en voz alta";
         VoiceStatus.Text = status;
+        RefreshActivity();
+    }
+
+    internal async Task VerifyVoiceInterruptionAsync()
+    {
+        BaelSettings previous = settings;
+        settings = previous with { VoiceKey = "fake", SpeakVoiceReplies = false };
+        try
+        {
+        var pending = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recordingDone = new TaskCompletionSource<byte[]?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        latestReply = "Prueba de interrupción";
+        Task pendingVoice = ReadAloudAsync(_ => pending.Task);
+        var interrupted = voiceRequest!;
+        Task listening = TalkAsync(_ => recordingDone.Task);
+        if (!interrupted.IsCancellationRequested || voiceRequest is not null || CurrentStage != AssistantStage.PreparingMicrophone)
+            throw new InvalidOperationException("Hablar no interrumpió la voz para abrir el micrófono.");
+        pending.SetResult([0,1,2]); await pendingVoice;
+        if (voicePlayer is not null || CurrentStage != AssistantStage.PreparingMicrophone)
+            throw new InvalidOperationException("La voz tardía interrumpió la preparación del micrófono.");
+        recordingDone.SetResult(null); await listening;
+        var first = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task old = ReadAloudAsync(_ => first.Task);
+        if (CurrentStage != AssistantStage.GeneratingVoice) throw new InvalidOperationException("No comenzó el estado de voz.");
+        StopVoice();
+        Task newer = ReadAloudAsync(_ => second.Task);
+        var owner = voiceRequest;
+        first.SetResult([0,1,2]); await old;
+        if (voiceRequest != owner || CurrentStage != AssistantStage.GeneratingVoice)
+            throw new InvalidOperationException("Una voz cancelada borró una solicitud posterior.");
+        StopVoice(); speechStage = AssistantStage.Listening; RefreshActivity();
+        second.SetResult([0,1,2]); await newer;
+        if (voicePlayer is not null || CurrentStage != AssistantStage.Listening)
+            throw new InvalidOperationException("Una respuesta tardía interrumpió la escucha.");
+        speechStage = AssistantStage.Idle; RefreshActivity();
+        }
+        finally { settings = previous; speechStage = AssistantStage.Idle; StopVoice(); }
     }
 
     private void StartPlayback(byte[] audio)
@@ -654,14 +742,21 @@ public partial class MainWindow : Window
         player.Init(voiceVolume.ToWaveProvider());
         player.Play();
         ReadAloudButton.Content = "Detener audio";
-        VoiceStatus.Text = "Reproduciendo…";
+        VoiceStatus.Text = "Reproduciendo… Pulsa Hablar o su atajo para interrumpirme.";
+        RefreshActivity();
     }
 
     private void ReleaseAudio()
     {
         var player = voicePlayer;
         voicePlayer = null;
-        player?.Dispose();
+        if (player is not null)
+        {
+            try { player.Stop(); }
+            catch (Exception error) when (error is System.Runtime.InteropServices.COMException or NAudio.MmException or InvalidOperationException) { }
+            try { player.Dispose(); }
+            catch (Exception error) when (error is System.Runtime.InteropServices.COMException or NAudio.MmException or InvalidOperationException) { }
+        }
         voiceReader?.Dispose();
         voiceReader = null;
         voiceStream?.Dispose();
@@ -678,4 +773,12 @@ internal sealed record ConversationLine(string Speaker, string Text, bool IsUser
 {
     public string Background => IsUser ? "#66EBE4FA" : "#55F4F3F8";
     public Thickness Margin => IsUser ? new Thickness(38, 0, 0, 0) : new Thickness(0, 0, 38, 0);
+}
+
+internal sealed class PendingReplyHandler : HttpMessageHandler
+{
+    internal bool Requested { get; private set; }
+    internal TaskCompletionSource<HttpResponseMessage> Result { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)
+    { Requested = true; return Result.Task; }
 }

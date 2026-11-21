@@ -61,6 +61,7 @@ internal static class AssistantCommands
         };
         string activities=string.Join(" · ",ModeActivities.Catalog(mode).Select(a=>a.Label));
         string controls=$"\nHablar: {Display(settings.TalkShortcut)}. Baile: {Display(settings.DanceShortcut)}. Agrandar/reducir: {Display(settings.EnlargeShortcut)} / {Display(settings.ShrinkShortcut)}.";
+        controls += "\nPulsa Hablar para interrumpir mi lectura y responder; Detener cancela la interacción actual. En el chat puedes desplegar los tiempos de cada etapa.";
         return $"Estoy en modo {Responses.Name(mode)}.\n{details}\nActividades: {activities}." +
             (settings.GetDocumentRule(mode).Limited ? "\nEste modo está limitado a sus PDF seleccionados." : "") +
             "\nPuedes pedirme cambiar de modo por voz o texto, por ejemplo: cambia al modo Gamer. Shift + clic derecho sobre el personaje abre modos y Ajustes."+controls;

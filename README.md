@@ -196,3 +196,16 @@ En cualquier modo, por texto o por una frase transcrita, se puede preguntar qué
 Los cambios de modo son locales: cambia al modo Inglés, quiero cambiar el modo a Sistema, ponte en modo Libre o activa el modo Gamer. Se aceptan acentos, mayúsculas y algunas variantes naturales. Si no reconoce el destino, muestra los ocho modos y no cambia a uno inventado. Una negación o una petición de traducción no se interpreta como cambio. Los comandos se atienden antes de las actividades, las APIs y la consulta PDF; la ayuda de la app no altera las restricciones del material. Cambiar de modo detiene la actividad guiada anterior y no abre por sí solo el chat.
 
 Pruebas añadidas: ayuda en los ocho modos incluso restringidos a PDF; cambio de modo desde el recorrido real de envío; variantes y negaciones; detección de voz suave, pausa configurable y espera máxima sin voz; medición PCM/float; conversión con formato, duración y tamaño verificables; colores de ambos temas. No se usan micrófonos ni claves reales en las pruebas automáticas. Queda comprobar con voz y pantalla en el equipo del usuario.
+
+
+## Interrumpir a BAEL, gestos y tiempos de respuesta
+
+Pulsa Hablar o Ctrl+Alt+V mientras BAEL genera o reproduce su voz para detenerla e iniciar el micrófono. Se mantienen los controles de fin de frase y cancelación. La interrupción es por botón o atajo: no escucha continuamente para detectar si lo interrumpes hablando. Debe haber una clave de transcripción configurada y el cuadro de mensaje vacío. Una generación cancelada que termine tarde se descarta y no puede borrar ni reproducirse sobre una solicitud posterior.
+
+El botón Detener cancela la captura, transcripción, respuesta de IA/PDF o voz actual. Los resultados cancelados no se publican como respuestas nuevas. Cambiar de modo cancela la respuesta pendiente; abrir Ajustes detiene también el audio y la captura para evitar mezclar las pruebas de dispositivos con una conversación.
+
+La mascota muestra estados de abrir micrófono, escuchar, transcribir, pensar, preparar voz y hablar. Los gestos usan los cuatro fotogramas existentes de su aspecto actual y movimientos suaves de cabeza/cuerpo; conservan el traje de cada modo. Una etiqueta breve sobre el personaje indica el estado. Durante estos estados pausa el baile y el movimiento libre; no baila con su propia lectura. Son gestos de actividad, sin sincronización fonética con los labios.
+
+En el chat, Tiempos de esta interacción muestra mediciones locales de apertura del micro, grabación, transcripción, consulta PDF/IA y preparación de voz. Grabar incluye el tiempo que habla el usuario; las otras etapas muestran la espera de ese paso. La actividad en curso incluye un contador. Copiar tiempos copia solo estas mediciones, sin conversación ni claves. No es una mejora cuantificada del proveedor: permite localizar la demora real en cada equipo.
+
+Pruebas automáticas añadidas: botón de Hablar iniciando una captura simulada mientras cancela TTS, descarte de audio que llega tarde, protección de una solicitud nueva frente al cierre de una anterior, estados/poses válidos en los fotogramas existentes y etiquetas de las etapas medidas. Se prueban sin micrófono, altavoces ni claves reales; la interrupción física y el sonido deben comprobarse en la PC del usuario.

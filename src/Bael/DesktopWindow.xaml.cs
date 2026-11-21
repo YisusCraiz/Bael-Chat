@@ -41,6 +41,7 @@ public partial class DesktopWindow : Window
     private bool dragged;
     private bool closing;
     private bool settingsOpen;
+    private long conversationPoseStarted = Environment.TickCount64;
     private readonly ChatterClock chatterClock = new();
 
     public DesktopWindow(bool testMode = false)
@@ -90,6 +91,23 @@ public partial class DesktopWindow : Window
         movementTimer.Tick += MoveFreely;
         bubbleTimer.Tick += WriteBubble;
         chat.ReplyReady += ShowBubble;
+        chat.ActivityChanged += stage =>
+        {
+            conversationPoseStarted = Environment.TickCount64;
+            lastActivity = conversationPoseStarted;
+            if (stage != AssistantStage.Idle) { danceRoutine.Reset(); dancing = false; transition = null; }
+            ActivityBadge.Visibility = stage == AssistantStage.Idle ? Visibility.Collapsed : Visibility.Visible;
+            ActivityBadgeText.Text = stage switch
+            {
+                AssistantStage.PreparingMicrophone => "● Abriendo micrófono",
+                AssistantStage.Listening => "● Te escucho",
+                AssistantStage.Transcribing => "⋯ Entendiendo tu frase",
+                AssistantStage.Thinking => "⋯ Pensando",
+                AssistantStage.GeneratingVoice => "♪ Preparando mi voz",
+                AssistantStage.Speaking => "♪ Hablando",
+                _ => ""
+            };
+        };
         chat.UserSpoke += OnMessage;
         chat.ModeChanged += selected =>
         {
@@ -269,7 +287,7 @@ public partial class DesktopWindow : Window
     {
         long now = Environment.TickCount64;
         long idleDelay = Math.Clamp(settings.IdleSeconds, 10, 300) * 1000L;
-        bool interacting = IsMouseOver || dragStart is not null || settingsOpen || ModeWheel.IsOpen || chat.IsCapturingVoice;
+        bool interacting = IsMouseOver || dragStart is not null || settingsOpen || ModeWheel.IsOpen || chat.CurrentStage != AssistantStage.Idle;
         float level = settings.DanceWithAudio ? audioMonitor.ReadLevel(now) : 0;
         bool heard = danceReaction.Update(settings.DanceWithAudio && !interacting,
             level, Math.Clamp(settings.DanceThreshold, 0.01, 0.30), now);
@@ -277,6 +295,12 @@ public partial class DesktopWindow : Window
         dancing = danceStage == DanceStage.Dancing;
         if (chatterClock.Poll(now, !interacting && !danceRoutine.Active && !AnswerBubble.IsOpen && chat.CanStartSpontaneous, settings.SpontaneousSeconds))
             _ = chat.StartSpontaneousAsync();
+        if (chat.CurrentStage != AssistantStage.Idle)
+        {
+            Character.Source = frames[outfit][ConversationActivity.Pose(chat.CurrentStage,(now-conversationPoseStarted)/1000.0).Frame];
+            lastActivity = now;
+            return;
+        }
         if (danceRoutine.Active)
         {
             lastActivity = now;
@@ -340,7 +364,7 @@ public partial class DesktopWindow : Window
         double seconds = Stopwatch.GetElapsedTime(movementTimestamp).TotalSeconds;
         movementTimestamp = Stopwatch.GetTimestamp();
         bool paused = !settings.Walk || IsMouseOver || dragStart is not null || settingsOpen
-            || chat.IsVisible || ModeWheel.IsOpen || AnswerBubble.IsOpen || transition is not null || danceRoutine.Active || chat.IsCapturingVoice;
+            || chat.IsVisible || ModeWheel.IsOpen || AnswerBubble.IsOpen || transition is not null || danceRoutine.Active || chat.CurrentStage != AssistantStage.Idle;
         if (paused)
             motion.Stop();
         else
@@ -352,7 +376,13 @@ public partial class DesktopWindow : Window
             Top = next.Y;
         }
 
-        if (dancing)
+        if (chat.CurrentStage != AssistantStage.Idle)
+        {
+            var gesture = ConversationActivity.Pose(chat.CurrentStage,(Environment.TickCount64-conversationPoseStarted)/1000.0);
+            BodyBob.X = gesture.X; BodyBob.Y = gesture.Y; BodyTilt.Angle = gesture.Angle;
+            Facing.ScaleX = 1; Facing.ScaleY = gesture.ScaleY;
+        }
+        else if (dancing)
         {
             var pose = DanceRoutine.Pose((Environment.TickCount64 - danceRoutine.Started) / 1000.0);
             BodyBob.X = pose.X; BodyBob.Y = pose.Y; BodyTilt.Angle = pose.Angle;

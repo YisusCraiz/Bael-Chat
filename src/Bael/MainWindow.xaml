@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="BAEL-UMAN · Conversación" Icon="Assets/bael-unicorn.ico"
-        Width="600" Height="740" MinWidth="420" MinHeight="440"
+        Width="640" Height="740" MinWidth="540" MinHeight="580"
         Topmost="True" WindowStartupLocation="Manual" WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="CanResizeWithGrip">
     <Border x:Name="ChatSurface" CornerRadius="18" BorderBrush="#AAC8B7EE" BorderThickness="1">
     <Grid x:Name="Chat" Margin="20">
@@ -66,6 +66,17 @@
             </Grid>
         </Border>
         <StackPanel Grid.Row="2" Margin="0,12,0,0">
+            <DockPanel Margin="0,0,0,5">
+                <Button x:Name="StopInteractionButton" DockPanel.Dock="Right" Content="Detener" Click="StopInteraction" IsEnabled="False" Padding="10,5" ToolTip="Cancelar escucha, respuesta o lectura" />
+                <TextBlock x:Name="ActivityStatus" Text="Listo para conversar" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#665391" AutomationProperties.LiveSetting="Polite" />
+            </DockPanel>
+            <Expander Header="Tiempos de esta interacción" Margin="0,0,0,6" Foreground="#665391">
+                <StackPanel>
+                    <TextBlock x:Name="TimingStatus" TextWrapping="Wrap" FontSize="11" Foreground="#776C90" />
+                    <Button Content="Copiar tiempos" Click="CopyTimings" HorizontalAlignment="Left" Padding="8,4" ToolTip="Copia únicamente los tiempos, sin mensajes ni claves" />
+                    <TextBlock Text="Grabar incluye el tiempo que hablas. Transcribir, IA y Preparar voz muestran sus esperas reales en esta sesión." FontSize="11" TextWrapping="Wrap" Foreground="#776C90" />
+                </StackPanel>
+            </Expander>
             <TextBlock x:Name="ChatStatus" TextWrapping="Wrap" Foreground="#776C90" Margin="0,0,0,7"
                        AutomationProperties.LiveSetting="Polite" />
             <Grid>
@@ -87,7 +98,7 @@
                 <Button x:Name="SendButton" Content="Enviar ↗" DockPanel.Dock="Right" Click="SendMessage" />
                 <WrapPanel>
                     <Button x:Name="TalkButton" Content="🎙 Hablar" Click="Talk"
-                            ToolTip="Pulsa para grabar. Termina al hacer una pausa o pulsar de nuevo." />
+                            ToolTip="Pulsa para interrumpir mi voz y hablar. Otra pulsación termina la frase." />
                     <Button x:Name="ReadAloudButton" Content="Leer en voz alta" IsEnabled="False" Click="ReadAloud"
                             Background="White" Foreground="#594C76" />
                     <Button Content="Copiar respuesta" Click="CopyReply" Background="White" Foreground="#594C76" />
