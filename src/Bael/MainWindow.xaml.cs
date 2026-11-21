@@ -129,6 +129,7 @@ public partial class MainWindow : Window
     internal event Action<ChatMode>? ModeChanged;
     private ChatRouter router = new();
     private readonly ModeActivities activities = new();
+    private readonly PdfQuizSession pdfQuiz = new();
     private GameWindow? games;
     private readonly Dictionary<ChatMode, List<ChatTurn>> histories;
     private readonly MemoryJournal memoryJournal;
@@ -180,7 +181,7 @@ public partial class MainWindow : Window
     private void ForgetHistory(ChatMode selected)
     {
         CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
-        memory.Messages.Remove(selected); histories.Remove(selected); activities.Stop(selected);
+        memory.Messages.Remove(selected); histories.Remove(selected); activities.Stop(selected); pdfQuiz.Stop();
         if(selected==ChatMode.Free) { lastSpontaneous=""; spontaneousContext=""; }
         PersistMemory(); if(selected==mode) RenderConversation();
     }
@@ -188,7 +189,7 @@ public partial class MainWindow : Window
     {
         CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
         if(!memoryJournal.Reset()) { UpdateMemoryStatus(); return false; }
-        memory.Messages.Clear(); histories.Clear(); memory.Notes.Clear(); lastSpontaneous=""; spontaneousContext="";
+        memory.Messages.Clear(); histories.Clear(); memory.Notes.Clear(); pdfQuiz.Stop(); lastSpontaneous=""; spontaneousContext="";
         foreach(var selected in Enum.GetValues<ChatMode>()) activities.Stop(selected);
         RenderConversation(); return true;
     }
@@ -197,7 +198,7 @@ public partial class MainWindow : Window
     internal void SelectMode(ChatMode selected)
     {
         CancelSpontaneous();
-        if (mode != selected) { activities.Stop(mode); replyRequest?.Cancel(); StopVoice(); }
+        if (mode != selected) { pdfQuiz.Stop(); activities.Stop(mode); replyRequest?.Cancel(); StopVoice(); }
         mode = selected;
         ModeLabel.Text = $"Modo {Responses.Name(mode).ToLowerInvariant()}";
         UpdateActivities();
@@ -216,6 +217,7 @@ public partial class MainWindow : Window
 
     internal void EditSettings(Window owner)
     {
+        pdfQuiz.Stop();
         CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
         var dialog = new SettingsWindow(settings, settingsUnreadable, OpenMemory) { Owner = owner, Topmost = owner.Topmost };
         dialog.LoadAudioDevices();
@@ -223,7 +225,7 @@ public partial class MainWindow : Window
         {
             settings = dialog.Settings;
             settingsUnreadable = false;
-            ApplySettings();
+            ApplySettings(); UpdateActivities();
             if(!settings.UseConversationContext) { lastSpontaneous=""; spontaneousContext=""; }
             PersistMemory();
             SettingsChanged?.Invoke(settings);
@@ -416,13 +418,14 @@ public partial class MainWindow : Window
     {
         ActivityButtons.Children.Clear();
         ModeDescription.Text = ModeActivities.Description(mode);
-        foreach (var activity in ModeActivities.Catalog(mode))
+        foreach (var activity in settings.GetDocumentRule(mode).Limited ? PdfStudy.Activities(mode) : ModeActivities.Catalog(mode))
         {
             var button = new Button { Content = activity.Label, ToolTip = activity.Prompt,
                 Padding = new Thickness(10, 6, 10, 6), FontSize = 12 };
             button.Click += async (_, _) =>
             {
                 if (!SendButton.IsEnabled) return;
+                if(activity.Prompt=="@pdfsearch") { Message.Text="Buscar en mis PDF: "; Message.Focus(); Message.CaretIndex=Message.Text.Length; return; }
                 if (activity.Prompt is "@cups" or "@poker")
                 {
                     if (games is null)
@@ -535,6 +538,7 @@ public partial class MainWindow : Window
         AddUserMessage(message); Message.Clear(); Message.Focus(); ChatStatus.Text = "";
         if (HandleAssistantCommand(message)) { RefreshActivity(); return true; }
         bool limited = current.GetDocumentRule(profile).Limited;
+        if(limited && pdfQuiz.TryReply(profile,message,out string quizReply)) { ShowReply(profile,quizReply); return true; }
         if (!limited && activities.TryReply(profile,message,out string activityReply))
         { string formatted=current.GetPersonality(profile).FormatLocal(profile,activityReply); RememberTurn(profile,message,formatted); ShowReply(profile,formatted); return true; }
         string reply = current.GetPersonality(profile).FormatLocal(profile,Responses.For(profile,message));
@@ -548,15 +552,33 @@ public partial class MainWindow : Window
         replyRequest = request; waitingForReply = true; SendButton.IsEnabled = false;
         ConversationTimings measured = timings;
         long started = Stopwatch.GetTimestamp();
+        bool pdfMeasured=false;
         ChatStatus.Text = limited ? "Buscando en tus PDF…" : "Consultando las APIs activas…";
         RefreshActivity();
         try
         {
             if (limited)
             {
-                reply = await Task.Run(() => PdfLibrary.Answer(current,profile,message),request.Token);
+                PdfEvidence evidence=await Task.Run(()=>PdfStudy.Retrieve(current,profile,message,request.Token),request.Token);
                 request.Token.ThrowIfCancellationRequested();
-                ChatStatus.Text = "Solo documentos · Pasajes del material seleccionado";
+                measured.Finish("PDF",started); pdfMeasured=true;
+                reply=evidence.Extracts(profile);
+                ChatStatus.Text="Solo documentos · Pasajes locales con archivo y página";
+                if(evidence.Task==PdfTask.Quiz && evidence.Complete && evidence.Sources.Length>0)
+                    reply=pdfQuiz.Start(profile,evidence);
+                else if(current.GetDocumentRule(profile).Assisted && current.OnlineChat && evidence.Complete && evidence.Sources.Length>0)
+                {
+                    long assistedStarted=Stopwatch.GetTimestamp();
+                    try
+                    {
+                        ChatResult assisted=await router.ReplyFromDocumentsAsync(current,profile,message,evidence.Sources,request.Token,
+                            new Progress<string>(status=> { if(!isClosed && replyRequest==request && !request.IsCancellationRequested) ChatStatus.Text=status; }));
+                        if(assisted.Text is not null && PdfStudy.TryExplanation(assisted.Text,evidence.Sources,out string explanation))
+                        { reply=explanation; ChatStatus.Text="Explicación con IA · citas y pasajes literales comprobados"; }
+                        else ChatStatus.Text="Se muestran pasajes locales: no llegó una explicación con citas válidas.";
+                    }
+                    finally { measured.Finish("IA de PDF",assistedStarted); }
+                }
             }
             else
             {
@@ -580,13 +602,14 @@ public partial class MainWindow : Window
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException or FormatException or JsonException or InvalidOperationException)
         {
             if (isClosed || request.IsCancellationRequested || mode != profile) return false;
-            ChatStatus.Text = "No llegó la respuesta. Se mostró una guía local.";
+            ChatStatus.Text = limited ? "No llegó la explicación de IA. Se muestran los pasajes locales." : "No llegó la respuesta. Se mostró una guía local.";
             if (!limited) { RememberTurn(profile,message,reply); ShowReply(profile,reply); return true; }
+            if(pdfMeasured) { ShowReply(profile,reply); return true; }
             return false;
         }
         finally
         {
-            measured.Finish(limited ? "PDF" : "IA",started);
+            if(!limited || !pdfMeasured) measured.Finish(limited ? "PDF" : "IA",started);
             if (replyRequest == request)
             { replyRequest = null; waitingForReply = false; if (!isClosed) SendButton.IsEnabled = true; }
             RefreshActivity();

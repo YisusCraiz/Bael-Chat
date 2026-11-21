@@ -59,12 +59,12 @@ internal static class AssistantCommands
             ChatMode.Gamer=>"Puedes abrir Vasos o Póker desde las actividades. Son partidas de espectáculo anunciadas donde BAEL siempre gana, con fichas ficticias, saldo inicial 1.000 y apuestas de 10, 50 o 100. En póker puedes cambiar hasta tres cartas.",
             _=>""
         };
-        string activities=string.Join(" · ",ModeActivities.Catalog(mode).Select(a=>a.Label));
+        string activities=string.Join(" · ",(settings.GetDocumentRule(mode).Limited?PdfStudy.Activities(mode):ModeActivities.Catalog(mode)).Select(a=>a.Label));
         string controls=$"\nHablar: {Display(settings.TalkShortcut)}. Baile: {Display(settings.DanceShortcut)}. Agrandar/reducir: {Display(settings.EnlargeShortcut)} / {Display(settings.ShrinkShortcut)}.";
         controls += "\nEl botón Memoria permite consultar o borrar el historial y elegir recuerdos por modo. Sus opciones están en Ajustes → Memoria.";
         controls += "\nPulsa Hablar para interrumpir mi lectura y responder; Detener cancela la interacción actual. En el chat puedes desplegar los tiempos de cada etapa.";
         return $"Estoy en modo {Responses.Name(mode)}.\n{details}\nActividades: {activities}." +
-            (settings.GetDocumentRule(mode).Limited ? "\nEste modo está limitado a sus PDF seleccionados." : "") +
+            (settings.GetDocumentRule(mode).Limited ? "\nEste modo está limitado a sus PDF seleccionados. Tienes resumen extractivo, búsqueda por tema y repaso de palabras; la explicación con IA es opcional en Ajustes → Documentos." : "") +
             "\nPuedes pedirme cambiar de modo por voz o texto, por ejemplo: cambia al modo Gamer. Shift + clic derecho sobre el personaje abre modos y Ajustes."+controls;
     }
     private static string Display(string shortcut)=>string.IsNullOrWhiteSpace(shortcut)?"desactivado":shortcut;

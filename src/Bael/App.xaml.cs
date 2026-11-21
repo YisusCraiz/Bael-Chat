@@ -46,6 +46,8 @@ public partial class App : Application
                 SpeechSilence.Verify();
                 await SpeechInput.VerifyTranscriptionAsync();
                 PdfLibrary.Verify();
+                PdfQuizSession.Verify();
+                await PdfStudyChecks.RunAsync();
                 await ChatRouterChecks.RunAsync();
                 File.WriteAllText(resultPath, "OK");
                 Shutdown(0);

@@ -128,7 +128,9 @@
                         <Label Target="{Binding ElementName=DocumentMode}" Content="Modo que quieres configurar" Padding="0,0,0,4" />
                         <ComboBox x:Name="DocumentMode" SelectionChanged="ChangeDocumentMode" />
                         <CheckBox x:Name="LimitToPdf" Content="Limitar este modo solo a sus PDF seleccionados" Margin="0,14,0,8" />
-                        <TextBlock Text="Desactivado: conversación libre. Activado: muestra pasajes del material con archivo y página. Si no encuentra respaldo, lo indica."
+                        <CheckBox x:Name="AssistPdf" Content="Permitir explicaciones con IA usando fragmentos de estos PDF" Margin="0,4,0,8" />
+                        <TextBlock Text="Esta opción es independiente para cada modo y requiere Usar IA en línea. Envía tu pregunta y hasta seis fragmentos de los PDF asignados a los proveedores que intente BAEL. No incluye recuerdos ni historial. Si falla o devuelve citas no válidas, se mantienen los pasajes locales." TextWrapping="Wrap" Margin="0,0,0,12" />
+                        <TextBlock Text="Desactivado el límite: conversación libre. Activado: busca solo en el material seleccionado, con archivo y página. El resumen local es extractivo y el repaso permite completar palabras del texto. Si no encuentra respaldo, lo indica."
                                    TextWrapping="Wrap" Margin="0,0,0,12" />
                         <TextBlock Text="PDF permitidos para este modo" FontWeight="SemiBold" />
                         <TextBlock Text="Selecciona varios con Ctrl + clic. Cada modo puede usar archivos distintos."

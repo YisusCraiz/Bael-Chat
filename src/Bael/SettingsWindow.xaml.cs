@@ -249,6 +249,7 @@ public partial class SettingsWindow : Window
         documentRules[mode] = new DocumentRule
         {
             Limited = LimitToPdf.IsChecked == true,
+            Assisted = AssistPdf.IsChecked == true,
             DocumentIds = ModePdfList.SelectedItems.Cast<PdfEntry>().Select(entry => entry.Id).ToList()
         };
     }
@@ -268,6 +269,7 @@ public partial class SettingsWindow : Window
             return;
         DocumentRule rule = documentRules[mode];
         LimitToPdf.IsChecked = rule.Limited;
+        AssistPdf.IsChecked = rule.Assisted;
         ModePdfList.SelectedItems.Clear();
         foreach (PdfEntry entry in documents.Where(entry => rule.DocumentIds.Contains(entry.Id)))
             ModePdfList.SelectedItems.Add(entry);

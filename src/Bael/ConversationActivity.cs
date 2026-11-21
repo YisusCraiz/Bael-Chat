@@ -47,7 +47,7 @@ internal static class ConversationActivity
 internal sealed class ConversationTimings
 {
     private readonly Dictionary<string,double> values=new();
-    private static readonly string[] Order=["Abrir micro","Grabar","Transcribir","PDF","IA","Preparar voz"];
+    private static readonly string[] Order=["Abrir micro","Grabar","Transcribir","PDF","IA de PDF","IA","Preparar voz"];
     internal void Record(string step,double milliseconds) => values[step]=Math.Max(0,milliseconds);
     internal void Finish(string step,long start) => Record(step,Stopwatch.GetElapsedTime(start).TotalMilliseconds);
     internal string Summary => string.Join(" · ",Order.Where(values.ContainsKey).Select(step=>$"{step}: {values[step]/1000:0.00} s"));

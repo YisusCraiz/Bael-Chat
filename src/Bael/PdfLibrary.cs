@@ -20,6 +20,7 @@ internal sealed record PdfPageText(int Page, string Text);
 internal sealed record DocumentRule
 {
     public bool Limited { get; init; }
+    public bool Assisted { get; init; }
     public List<string> DocumentIds { get; init; } = [];
 }
 
@@ -63,6 +64,7 @@ internal static class PdfLibrary
     {
         if (!Regex.IsMatch(id, "^[a-f0-9]{32}$"))
             return;
+        lock(CacheSync) Cache.Remove(id);
         try
         {
             string folder = Path.Combine(Root, id);
@@ -75,14 +77,22 @@ internal static class PdfLibrary
         }
     }
 
-    private static PdfPageText[] Read(PdfEntry entry)
+    private static readonly object CacheSync=new();
+    private static readonly Dictionary<string,(DateTime Stamp,PdfPageText[] Pages)> Cache=new();
+    internal static PdfPageText[] Read(PdfEntry entry)
     {
         if (!Regex.IsMatch(entry.Id, "^[a-f0-9]{32}$"))
             return [];
         try
         {
-            return JsonSerializer.Deserialize<PdfPageText[]>(
-                File.ReadAllText(Path.Combine(Root, entry.Id, "pages.json"))) ?? [];
+            string path=Path.Combine(Root,entry.Id,"pages.json");
+            if(!File.Exists(path)) { lock(CacheSync) Cache.Remove(entry.Id); return []; }
+            DateTime stamp=File.GetLastWriteTimeUtc(path);
+            lock(CacheSync) if(Cache.TryGetValue(entry.Id,out var cached) && cached.Stamp==stamp) return cached.Pages;
+            var pages=JsonSerializer.Deserialize<PdfPageText[]>(File.ReadAllText(path)) ?? [];
+            lock(CacheSync)
+            { if(Cache.Count>=8) Cache.Remove(Cache.Keys.First()); Cache[entry.Id]=(stamp,pages); }
+            return pages;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -90,70 +100,29 @@ internal static class PdfLibrary
         }
     }
 
-    public static string Answer(BaelSettings settings, ChatMode mode, string question)
-    {
-        DocumentRule rule = settings.GetDocumentRule(mode);
-        PdfEntry[] selected = settings.Documents.Where(entry => rule.DocumentIds.Contains(entry.Id)).ToArray();
-        if (selected.Length == 0)
-            return "Este modo está limitado a documentos. Añade PDF y selecciónalos en Ajustes → Documentos para poder consultar su contenido.";
-
-        var pages = selected.SelectMany(entry => Read(entry).Select(page => (entry.Name, page.Page, page.Text))).ToArray();
-        if (pages.Length == 0)
-            return "No se pudieron leer los documentos seleccionados. Vuelve a importarlos desde Ajustes → Documentos.";
-
-        var passages = Search(pages, question);
-        if (passages.Length == 0)
-            return "No encontré información suficiente para esa pregunta en los PDF seleccionados. Prueba con el nombre del tema o términos que aparezcan en el documento.";
-
-        string introduction = mode == ChatMode.Math
-            ? "Revisa estos pasajes del material e intenta identificar el primer paso de tu ejercicio:"
-            : "Encontré estos pasajes en los PDF seleccionados:";
-        return introduction + "\n\n" + string.Join("\n\n", passages.Select(passage =>
-            $"«{passage.Text}»\nFuente: {passage.Name}, página {passage.Page}."));
-    }
+    public static string Answer(BaelSettings settings,ChatMode mode,string question) =>
+        PdfStudy.Retrieve(settings,mode,question,CancellationToken.None).Extracts(mode);
 
     internal sealed record Passage(string Name, int Page, string Text, int Score);
 
-    internal static Passage[] Search(IEnumerable<(string Name, int Page, string Text)> pages, string question)
-    {
-        var terms = Tokens(question);
-        if (terms.Count == 0)
-            return [];
-        return pages.SelectMany(page => Chunks(page.Text).Select(text =>
-            new Passage(page.Name, page.Page, text, Tokens(text).Count(terms.Contains))))
-            .Where(passage => passage.Score > 0)
-            .OrderByDescending(passage => passage.Score)
-            .ThenBy(passage => passage.Page)
-            .Take(3).ToArray();
-    }
+    internal static Passage[] Search(IEnumerable<(string Name,int Page,string Text)> pages,string question) =>
+        PdfStudy.Rank(pages.Select(p=>("",p.Name,p.Page,p.Text)),question).Sources.Take(3)
+            .Select(s=>new Passage(s.Name,s.Page,s.Text,PdfStudy.Terms(s.Text).Intersect(PdfStudy.Terms(question)).Count())).ToArray();
 
-    private static readonly HashSet<string> StopWords = new(
-        "que qué cual cuáles como cómo para por del las los una uno unos unas con sin sobre este esta estos estas tengo quiero dime explica explicar ayuda ayudar puedes podrias favor segun dónde donde está estan son hay cuál usando solo documento documentos pdf the and what how can could please from this that with".Split(' '));
-
-    private static HashSet<string> Tokens(string text)
+    internal static string Clean(string text) => Regex.Replace(Regex.Replace(text.Replace("\u00ad",""),@"(?<=\p{L})-\s*\r?\n\s*(?=\p{L})",""),@"\s+"," ").Trim();
+    internal static IEnumerable<string> Chunks(string text)
     {
-        string normalized = new(text.ToLowerInvariant().Normalize(NormalizationForm.FormD)
-            .Where(character => CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark).ToArray());
-        return Regex.Matches(normalized, "[a-z0-9]{3,}").Select(match => match.Value)
-            .Where(term => !StopWords.Contains(term)).ToHashSet();
-    }
-
-    private static IEnumerable<string> Chunks(string text)
-    {
-        string normalized = Regex.Replace(text, "\\s+", " ").Trim();
-        for (int offset = 0; offset < normalized.Length;)
+        string normalized=Clean(text);
+        for(int offset=0;offset<normalized.Length;)
         {
-            int count = Math.Min(650, normalized.Length - offset);
-            if (offset + count < normalized.Length)
-            {
-                int space = normalized.LastIndexOf(' ', offset + count - 1, count);
-                if (space > offset)
-                    count = space - offset;
-            }
-            yield return normalized.Substring(offset, count).Trim();
-            offset += count;
-            while (offset < normalized.Length && normalized[offset] == ' ')
-                offset++;
+            int count=Math.Min(650,normalized.Length-offset);
+            if(offset+count<normalized.Length)
+            { int space=normalized.LastIndexOf(' ',offset+count-1,count); if(space>offset) count=space-offset; }
+            if(count>0) yield return normalized.Substring(offset,count).Trim();
+            if(offset+count>=normalized.Length) yield break;
+            offset+=Math.Max(1,count-80);
+            while(offset<normalized.Length && normalized[offset]!=' ') offset++;
+            while(offset<normalized.Length && normalized[offset]==' ') offset++;
         }
     }
 
