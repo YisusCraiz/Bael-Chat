@@ -9,6 +9,9 @@ internal sealed record BaelSettings
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BAEL", "settings.dat");
 
+    public bool SaveConversations { get; init; } = true;
+    public bool UseConversationContext { get; init; } = true;
+    public bool UsePinnedMemories { get; init; } = true;
     public string UiTheme { get; init; } = "Claro";
     public int SpeechPauseMilliseconds { get; init; } = 900;
     public double SpeechThreshold { get; init; } = 0.004;

@@ -13,7 +13,7 @@ public partial class App : Application
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             try
             {
-                var window = new MainWindow();
+                var window = new MainWindow(MemoryJournal.Volatile());
                 window.VerifyStartup();
                 await window.VerifySpontaneousAsync();
                 await window.VerifyCommandsAsync();
@@ -24,6 +24,12 @@ public partial class App : Application
                 companion.VerifyCompanion();
                 companion.Close();
                 await ElevenLabsVoice.VerifyAsync();
+                MemoryJournal.Verify();
+                MainWindow.VerifyMemoryContinuation();
+                await MemoryContextChecks.RunAsync();
+                var noteData=new MemoryData();
+                var memoryWindow=new MemoryWindow(noteData,new BaelSettings(),ChatMode.Free,()=>{},_=>{},()=>true,()=>true,()=>"Prueba");
+                memoryWindow.VerifyInterface(); memoryWindow.Close();
                 ConversationActivity.Verify();
                 CompanionChatter.Verify();
                 DanceRoutine.Verify();

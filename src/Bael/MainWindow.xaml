@@ -19,12 +19,14 @@
                 <TextBlock x:Name="ModeLabel" Text="Modo estudiante" Foreground="#776C90" Margin="0,5,0,0" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                <Button Content="¿Qué puedo hacer?" Click="ExplainFunctions" ToolTip="Ver funciones del modo actual" Background="White" Foreground="#594C76" />
+                <Button Content="Funciones" Click="ExplainFunctions" ToolTip="Ver funciones del modo actual" Background="White" Foreground="#594C76" />
+                <Button Content="Memoria" Click="ManageMemory" ToolTip="Historial y recuerdos por modo" />
                 <Button x:Name="Modes" Content="Modo" Click="OpenModes" ToolTip="Cambiar el modo del personaje" />
                 <Button Content="Ocultar" Click="HideChat" Background="White" Foreground="#594C76" />
             </StackPanel>
         </Grid>
         <TextBlock x:Name="ModeDescription" TextWrapping="Wrap" Foreground="#776C90" Margin="0,0,0,6" />
+        <TextBlock x:Name="MemoryStatus" TextWrapping="Wrap" FontSize="11" Foreground="#776C90" Margin="0,0,0,5" />
         <WrapPanel x:Name="ActivityButtons" />
         </StackPanel>
         <Border Grid.Row="1" Background="Transparent" CornerRadius="18" BorderBrush="#E9E3F2" BorderThickness="1" Padding="8">

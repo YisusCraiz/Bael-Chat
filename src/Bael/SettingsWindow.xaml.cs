@@ -40,10 +40,15 @@ public partial class SettingsWindow : Window
 
     internal BaelSettings Settings { get; private set; }
 
-    internal SettingsWindow(BaelSettings settings, bool unreadable)
+    internal SettingsWindow(BaelSettings settings, bool unreadable, Action<Window>? memoryManager = null)
     {
         InitializeComponent();
         Settings = settings;
+        SaveConversations.IsChecked=settings.SaveConversations;
+        UseConversationContext.IsChecked=settings.UseConversationContext;
+        UsePinnedMemories.IsChecked=settings.UsePinnedMemories;
+        OpenMemoryButton.IsEnabled=memoryManager is not null;
+        OpenMemoryButton.Click+=(_,_)=>memoryManager?.Invoke(this);
         SettingsTheme.Apply(this,settings.UiTheme == "Oscuro");
         ThemeChoice.ItemsSource = new[] { "Claro", "Oscuro" };
         ThemeChoice.SelectedItem = settings.UiTheme == "Oscuro" ? "Oscuro" : "Claro";
@@ -616,6 +621,9 @@ public partial class SettingsWindow : Window
 
         var updated = new BaelSettings
         {
+            SaveConversations=SaveConversations.IsChecked==true,
+            UseConversationContext=UseConversationContext.IsChecked==true,
+            UsePinnedMemories=UsePinnedMemories.IsChecked==true,
             UiTheme = ThemeChoice.SelectedItem as string ?? "Claro",
             SpeechPauseMilliseconds = (int)SpeechPause.Value,
             SpeechThreshold = SpeechThreshold.Value / 100,

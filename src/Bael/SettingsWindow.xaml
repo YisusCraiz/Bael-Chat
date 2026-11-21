@@ -97,6 +97,21 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
+            <TabItem Header="Memoria">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="18">
+                        <TextBlock Text="Continuidad con control" FontSize="19" FontWeight="SemiBold" />
+                        <CheckBox x:Name="SaveConversations" Content="Conservar el historial al cerrar BAEL" Margin="0,16,0,8" />
+                        <TextBlock Text="Se guardan los últimos 100 mensajes por modo, protegidos con tu cuenta de Windows. Al desactivar esta opción y guardar, el historial deja de conservarse en disco; los mensajes de la sesión siguen visibles mientras BAEL esté abierto." TextWrapping="Wrap" Margin="0,0,0,14" />
+                        <CheckBox x:Name="UseConversationContext" Content="Usar el contexto reciente del modo para continuar la conversación" Margin="0,0,0,8" />
+                        <TextBlock Text="Si usas IA, se comparten con los proveedores que intente BAEL hasta 12 turnos recientes de ese modo. Desactivado: cada consulta se envía sin ese contexto previo." TextWrapping="Wrap" Margin="0,0,0,14" />
+                        <CheckBox x:Name="UsePinnedMemories" Content="Usar los recuerdos elegidos y activos de cada modo" Margin="0,0,0,8" />
+                        <TextBlock Text="Tú escribes las notas que deseas conservar en el gestor. Pueden usarse hasta 6 activas por modo con las APIs de conversación. En modos limitados a PDF no se usan como fuente de respuesta. No se crean recuerdos personales automáticamente." TextWrapping="Wrap" Margin="0,0,0,14" />
+                        <Button x:Name="OpenMemoryButton" Content="Abrir historial y recuerdos" HorizontalAlignment="Left" />
+                        <TextBlock Text="Los cambios de estas opciones se aplican con Guardar cambios. En el gestor, borrar mensajes o editar recuerdos se aplica al instante. Los recuerdos elegidos se conservan aunque desactives el guardado del historial." TextWrapping="Wrap" Margin="0,12,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
             <TabItem Header="Documentos">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="18">

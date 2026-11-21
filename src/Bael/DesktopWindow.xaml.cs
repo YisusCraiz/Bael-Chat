@@ -13,7 +13,7 @@ namespace Bael;
 
 public partial class DesktopWindow : Window
 {
-    private readonly MainWindow chat = new();
+    private readonly MainWindow chat;
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(80) };
     private readonly Dictionary<string, BitmapImage[]> frames = new();
     private readonly Queue<long> messages = new();
@@ -46,6 +46,7 @@ public partial class DesktopWindow : Window
 
     public DesktopWindow(bool testMode = false)
     {
+        chat=testMode?new MainWindow(MemoryJournal.Volatile()):new MainWindow();
         InitializeComponent();
         settings = chat.CurrentSettings;
         Topmost = settings.Topmost;

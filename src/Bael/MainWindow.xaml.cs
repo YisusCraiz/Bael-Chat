@@ -57,7 +57,8 @@ public partial class MainWindow : Window
     private CancellationTokenSource? spontaneousRequest;
     private string lastSpontaneous = "";
     private string spontaneousContext = "";
-    internal bool CanStartSpontaneous => !isClosed && mode == ChatMode.Free && settings.SpontaneousChat
+    private bool memoryOpen;
+    internal bool CanStartSpontaneous => !isClosed && !memoryOpen && mode == ChatMode.Free && settings.SpontaneousChat
         && !settings.GetDocumentRule(ChatMode.Free).Limited && spontaneousRequest is null
         && speechRequest is null && voiceRequest is null && voicePlayer is null
         && CurrentStage == AssistantStage.Idle && !waitingForReply && SendButton.IsEnabled && string.IsNullOrWhiteSpace(Message.Text) && !activities.IsRunning(ChatMode.Free);
@@ -86,7 +87,7 @@ public partial class MainWindow : Window
                 try
                 {
                     ChatResult response = await router.ReplyAsync(current, ChatMode.Free,
-                        CompanionChatter.Prompt(current.GetPersonality(ChatMode.Free),lastSpontaneous), [], timeout.Token);
+                        CompanionChatter.Prompt(current.GetPersonality(ChatMode.Free),current.UseConversationContext?lastSpontaneous:""), [], timeout.Token, memoryContext:memory.ContextFor(ChatMode.Free));
                     if (!string.IsNullOrWhiteSpace(response.Text)) reply = response.Text;
                 }
                 catch (OperationCanceledException) when (!request.IsCancellationRequested) { }
@@ -128,7 +129,62 @@ public partial class MainWindow : Window
     private ChatRouter router = new();
     private readonly ModeActivities activities = new();
     private GameWindow? games;
-    private readonly Dictionary<ChatMode, List<ChatTurn>> histories = new();
+    private readonly Dictionary<ChatMode, List<ChatTurn>> histories;
+    private readonly MemoryJournal memoryJournal;
+    private readonly MemoryData memory;
+
+    private void RenderConversation()
+    {
+        Conversation.Items.Clear();
+        if(memory.Messages.TryGetValue(mode,out var lines))
+            foreach(var line in lines) Conversation.Items.Add(new ConversationLine(line.IsUser?"Tú":$"BAEL · {Responses.Name(mode)}",line.Text,line.IsUser));
+        latestReply = lines?.LastOrDefault(line=>!line.IsUser)?.Text;
+        ReadAloudButton.IsEnabled = latestReply is not null;
+        if(Conversation.Items.Count>0) Conversation.ScrollIntoView(Conversation.Items[Conversation.Items.Count-1]);
+        UpdateMemoryStatus();
+    }
+    private void PersistMemory()
+    { memoryJournal.Queue(memory.Snapshot(settings.SaveConversations)); UpdateMemoryStatus(); }
+    private string MemoryStatusText()
+    {
+        if(memoryJournal.Error.Length>0) return memoryJournal.Error;
+        if(memoryJournal.Busy) return "Guardando memoria local…";
+        return settings.SaveConversations ? "Historial local protegido · últimos 100 mensajes por modo" : "Historial de esta sesión · guardado desactivado";
+    }
+    private void UpdateMemoryStatus() { if(!isClosed) MemoryStatus.Text = MemoryStatusText(); }
+    private void AppendMemory(ChatMode profile,string text,bool user)
+    {
+        if(!memory.Messages.TryGetValue(profile,out var list)) { list=[]; memory.Messages[profile]=list; }
+        list.Add(new(MemoryData.Clip(text,4000),user,DateTimeOffset.Now));
+        if(list.Count>100) list.RemoveRange(0,list.Count-100);
+        PersistMemory();
+    }
+    private void ManageMemory(object sender,RoutedEventArgs e) => OpenMemory(this);
+    private void OpenMemory(Window owner)
+    {
+        CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
+        var dialog = new MemoryWindow(memory,settings,mode,PersistMemory,ForgetHistory,ResetMemory,
+            ()=>!memoryJournal.Blocked,MemoryStatusText) { Owner=owner,Topmost=owner.Topmost };
+        memoryOpen=true;
+        try { dialog.ShowDialog(); }
+        finally { memoryOpen=false; RenderConversation(); }
+    }
+    private void ForgetHistory(ChatMode selected)
+    {
+        CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
+        memory.Messages.Remove(selected); histories.Remove(selected); activities.Stop(selected);
+        if(selected==ChatMode.Free) { lastSpontaneous=""; spontaneousContext=""; }
+        PersistMemory(); if(selected==mode) RenderConversation();
+    }
+    private bool ResetMemory()
+    {
+        CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
+        if(!memoryJournal.Reset()) { UpdateMemoryStatus(); return false; }
+        memory.Messages.Clear(); histories.Clear(); memory.Notes.Clear(); lastSpontaneous=""; spontaneousContext="";
+        foreach(var selected in Enum.GetValues<ChatMode>()) activities.Stop(selected);
+        RenderConversation(); return true;
+    }
+
 
     internal void SelectMode(ChatMode selected)
     {
@@ -137,6 +193,7 @@ public partial class MainWindow : Window
         mode = selected;
         ModeLabel.Text = $"Modo {Responses.Name(mode).ToLowerInvariant()}";
         UpdateActivities();
+        RenderConversation();
         ModeChanged?.Invoke(mode);
         ChatStatus.Text = settings.GetDocumentRule(mode).Limited
             ? "Solo documentos · Consulta los PDF asignados en Ajustes."
@@ -152,13 +209,15 @@ public partial class MainWindow : Window
     internal void EditSettings(Window owner)
     {
         CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
-        var dialog = new SettingsWindow(settings, settingsUnreadable) { Owner = owner, Topmost = owner.Topmost };
+        var dialog = new SettingsWindow(settings, settingsUnreadable, OpenMemory) { Owner = owner, Topmost = owner.Topmost };
         dialog.LoadAudioDevices();
         if (dialog.ShowDialog() == true)
         {
             settings = dialog.Settings;
             settingsUnreadable = false;
             ApplySettings();
+            if(!settings.UseConversationContext) { lastSpontaneous=""; spontaneousContext=""; }
+            PersistMemory();
             SettingsChanged?.Invoke(settings);
         }
     }
@@ -179,11 +238,18 @@ public partial class MainWindow : Window
     private bool finishRecording;
     private ChatMode mode = ChatMode.Student;
 
-    public MainWindow()
+    public MainWindow() : this(new MemoryJournal()) { }
+    internal MainWindow(MemoryJournal journal)
     {
+        memoryJournal=journal; memory=journal.Loaded.Snapshot(); histories=memory.Context;
         InitializeComponent();
         settings = BaelSettings.Load(out settingsUnreadable);
+        memoryJournal.Completed += () =>
+        {
+            if(!Dispatcher.HasShutdownStarted) Dispatcher.InvokeAsync(()=> { if(!isClosed) UpdateMemoryStatus(); });
+        };
         ApplySettings();
+        if(!settings.SaveConversations) { memory.Messages.Clear(); histories.Clear(); memoryJournal.Queue(memory.Snapshot(false)); }
         SelectMode(ChatMode.Student);
         activityTimer.Tick += (_, _) => RefreshActivity();
         RefreshActivity();
@@ -200,6 +266,7 @@ public partial class MainWindow : Window
             voiceRequest?.Cancel();
             speechRequest?.Cancel();
             ReleaseAudio();
+            memoryJournal.Flush();
         };
     }
 
@@ -228,9 +295,10 @@ public partial class MainWindow : Window
         var settingsWindow = new SettingsWindow(settings, settingsUnreadable);
         settingsWindow.Close();
 
+        int savedCount=Conversation.Items.Count;
         HideChat(this, click);
         OpenConversation();
-        if (Chat.Visibility != Visibility.Visible || Conversation.Items.Count != Enum.GetValues<ChatMode>().Length * 2)
+        if (Chat.Visibility != Visibility.Visible || Conversation.Items.Count != savedCount)
             throw new InvalidOperationException("El chat perdió la conversación al volver a abrirlo.");
     }
 
@@ -290,7 +358,8 @@ public partial class MainWindow : Window
                 var handler = new PendingReplyHandler();
                 using var client = new HttpClient(handler); router = new ChatRouter(client);
                 SelectMode(ChatMode.Free);
-                int before = Conversation.Items.Count; string? previousReply = latestReply;
+                int before = memory.Messages.TryGetValue(ChatMode.Free,out var priorLines)?priorLines.Count:0;
+                string? previousReply = latestReply;
                 Message.Text = "Pregunta de prueba";
                 Task<bool> pending = SendCurrentMessage();
                 if (CurrentStage != AssistantStage.Thinking || !handler.Requested)
@@ -299,11 +368,40 @@ public partial class MainWindow : Window
                 handler.Result.SetResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
                 { Content = new StringContent("{\"choices\":[{\"message\":{\"content\":\"Esta respuesta debe descartarse\"}}]}") });
                 bool answered = await pending;
-                if (answered || CurrentStage != AssistantStage.Idle || Conversation.Items.Count != before+1 || latestReply != previousReply)
+                if (answered || CurrentStage != AssistantStage.Idle || memory.Messages[ChatMode.Free].Count != before+1
+                    || (!changeMode && latestReply != previousReply))
                     throw new InvalidOperationException("Una respuesta cancelada se publicó o dejó la app ocupada.");
             }
         }
         finally { router = previousRouter; settings = previous; SelectMode(ChatMode.Student); }
+    }
+
+    internal static void VerifyMemoryContinuation()
+    {
+        string folder=Path.Combine(Path.GetTempPath(),"BAEL-resume-"+Guid.NewGuid().ToString("N"));
+        string file=Path.Combine(folder,"memory.dat");
+        try
+        {
+            var first=new MainWindow(new MemoryJournal(file));
+            first.settings=first.settings with { SaveConversations=true };
+            first.SelectMode(ChatMode.Free); first.AddUserMessage("Retomar mi proyecto"); first.ShowReply(ChatMode.Free,"Seguimos con tu proyecto");
+            first.histories[ChatMode.Free]=[new("user","Retomar mi proyecto"),new("model","Seguimos con tu proyecto")];
+            first.memory.Notes.Add(new("chosen",ChatMode.Free,"Prefiero ejemplos cortos")); first.PersistMemory(); first.Close();
+            var second=new MainWindow(new MemoryJournal(file));
+            second.SelectMode(ChatMode.Free);
+            if(second.Conversation.Items.Count!=2 || second.latestReply!="Seguimos con tu proyecto" || second.histories[ChatMode.Free].Count!=2)
+                throw new InvalidOperationException("No se recuperó la conversación al volver a abrir.");
+            second.SelectMode(ChatMode.English);
+            if(second.Conversation.Items.Count!=0 || second.latestReply is not null) throw new InvalidOperationException("Se mezclaron historiales de modos.");
+            second.SelectMode(ChatMode.Free); second.ForgetHistory(ChatMode.Free);
+            if(second.Conversation.Items.Count!=0 || second.histories.ContainsKey(ChatMode.Free) || second.memory.Notes.Count!=1)
+                throw new InvalidOperationException("El borrado del historial afectó los recuerdos elegidos.");
+            second.Close();
+            var after=new MemoryJournal(file);
+            if(after.Loaded.Messages.ContainsKey(ChatMode.Free) || after.Loaded.Notes.Count!=1)
+                throw new InvalidOperationException("El historial borrado reapareció.");
+        }
+        finally { if(Directory.Exists(folder)) Directory.Delete(folder,true); }
     }
 
     private void UpdateActivities()
@@ -454,10 +552,10 @@ public partial class MainWindow : Window
             }
             else
             {
-                string routedMessage = profile == ChatMode.Free && spontaneousContext.Length > 0
+                string routedMessage = current.UseConversationContext && profile == ChatMode.Free && spontaneousContext.Length > 0
                     ? "Contexto: BAEL inició antes este comentario: «" + spontaneousContext + "».\nMensaje actual del usuario: " + message : message;
                 ChatResult result = await router.ReplyAsync(current,profile,routedMessage,history.ToArray(),request.Token,
-                    new Progress<string>(status => { if (!isClosed && replyRequest == request && !request.IsCancellationRequested) ChatStatus.Text = status; }));
+                    new Progress<string>(status => { if (!isClosed && replyRequest == request && !request.IsCancellationRequested) ChatStatus.Text = status; }), memoryContext:memory.ContextFor(profile));
                 if (!string.IsNullOrWhiteSpace(result.Text)) reply = result.Text;
                 ChatStatus.Text = result.Status;
             }
@@ -490,25 +588,32 @@ public partial class MainWindow : Window
 
     private void AddUserMessage(string message)
     {
+        AppendMemory(mode,message,true);
         var line = new ConversationLine("Tú", message, true);
         Conversation.Items.Add(line);
+        while(Conversation.Items.Count>100) Conversation.Items.RemoveAt(0);
         Conversation.ScrollIntoView(line);
     }
 
     private void ShowReply(ChatMode profile, string reply)
     {
-        latestReply = reply;
-        ReadAloudButton.IsEnabled = true;
-        var line = new ConversationLine($"BAEL · {GetModeName(profile)}", reply, false);
-        Conversation.Items.Add(line);
-        Conversation.ScrollIntoView(line);
-        ReplyReady?.Invoke(profile, reply);
+        AppendMemory(profile,reply,false);
+        if(profile==mode)
+        {
+            latestReply=reply; ReadAloudButton.IsEnabled=true;
+            var line=new ConversationLine($"BAEL · {GetModeName(profile)}",reply,false);
+            Conversation.Items.Add(line);
+            while(Conversation.Items.Count>100) Conversation.Items.RemoveAt(0);
+            Conversation.ScrollIntoView(line);
+        }
+        ReplyReady?.Invoke(profile,reply);
     }
 
     private async void Talk(object sender, RoutedEventArgs e) => await TalkAsync();
 
     private async Task TalkAsync(Func<CancellationToken,Task<byte[]?>>? recorder = null)
     {
+        if(memoryOpen) { SpeechNotice="Cierra el gestor de Memoria antes de abrir el micrófono."; return; }
         CancelSpontaneous();
         if (speechRequest is not null)
         {
