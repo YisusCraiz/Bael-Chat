@@ -25,7 +25,7 @@ public partial class App : Application
                 companion.Close();
                 await ElevenLabsVoice.VerifyAsync();
                 MemoryJournal.Verify();
-                MainWindow.VerifyMemoryContinuation();
+                Bael.MainWindow.VerifyMemoryContinuation();
                 await MemoryContextChecks.RunAsync();
                 var noteData=new MemoryData();
                 var memoryWindow=new MemoryWindow(noteData,new BaelSettings(),ChatMode.Free,()=>{},_=>{},()=>true,()=>true,()=>"Prueba");
