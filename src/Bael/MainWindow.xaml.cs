@@ -97,6 +97,7 @@ public partial class MainWindow : Window
             if (reply.Length > 400) reply = reply[..397]+"…";
             lastSpontaneous = reply;
             spontaneousContext = reply;
+            RememberTurn(ChatMode.Free,"Evento de la app: BAEL inicia una conversación por su propia iniciativa.",reply);
             ShowReply(ChatMode.Free, reply);
             if (current.SpontaneousVoice) { timings = new ConversationTimings(); _ = ReadAloudAsync(); }
         }
@@ -152,6 +153,13 @@ public partial class MainWindow : Window
         return settings.SaveConversations ? "Historial local protegido · últimos 100 mensajes por modo" : "Historial de esta sesión · guardado desactivado";
     }
     private void UpdateMemoryStatus() { if(!isClosed) MemoryStatus.Text = MemoryStatusText(); }
+    private void RememberTurn(ChatMode profile,string user,string reply)
+    {
+        if(settings.GetDocumentRule(profile).Limited) return;
+        if(!histories.TryGetValue(profile,out var turns)) { turns=[]; histories[profile]=turns; }
+        turns.Add(new("user",MemoryData.Clip(user,4000))); turns.Add(new("model",MemoryData.Clip(reply,4000)));
+        if(turns.Count>12) turns.RemoveRange(0,turns.Count-12);
+    }
     private void AppendMemory(ChatMode profile,string text,bool user)
     {
         if(!memory.Messages.TryGetValue(profile,out var list)) { list=[]; memory.Messages[profile]=list; }
@@ -528,13 +536,13 @@ public partial class MainWindow : Window
         if (HandleAssistantCommand(message)) { RefreshActivity(); return true; }
         bool limited = current.GetDocumentRule(profile).Limited;
         if (!limited && activities.TryReply(profile,message,out string activityReply))
-        { ShowReply(profile,current.GetPersonality(profile).FormatLocal(profile,activityReply)); return true; }
+        { string formatted=current.GetPersonality(profile).FormatLocal(profile,activityReply); RememberTurn(profile,message,formatted); ShowReply(profile,formatted); return true; }
         string reply = current.GetPersonality(profile).FormatLocal(profile,Responses.For(profile,message));
         if (!limited && profile == ChatMode.System && (message.Contains("diagn",StringComparison.OrdinalIgnoreCase)
             || message.Contains("examina",StringComparison.OrdinalIgnoreCase) || message.Contains("revisa",StringComparison.OrdinalIgnoreCase)))
-        { ShowReply(profile,reply); return true; }
+        { RememberTurn(profile,message,reply); ShowReply(profile,reply); return true; }
         if (!limited && !current.OnlineChat)
-        { ChatStatus.Text = "Sin conexión · actividades y guías locales."; ShowReply(profile,reply); return true; }
+        { ChatStatus.Text = "Sin conexión · actividades y guías locales."; RememberTurn(profile,message,reply); ShowReply(profile,reply); return true; }
         if (!histories.TryGetValue(profile,out var history)) { history = []; histories[profile] = history; }
         using var request = CancellationTokenSource.CreateLinkedTokenSource(chatLifetime.Token);
         replyRequest = request; waitingForReply = true; SendButton.IsEnabled = false;
@@ -563,8 +571,7 @@ public partial class MainWindow : Window
             if (!limited)
             {
                 if (profile == ChatMode.Free) spontaneousContext = "";
-                history.Add(new ChatTurn("user",message)); history.Add(new ChatTurn("model",reply));
-                if (history.Count > 12) history.RemoveRange(0,history.Count-12);
+                RememberTurn(profile,message,reply);
             }
             ShowReply(profile,reply); return true;
         }
@@ -574,7 +581,7 @@ public partial class MainWindow : Window
         {
             if (isClosed || request.IsCancellationRequested || mode != profile) return false;
             ChatStatus.Text = "No llegó la respuesta. Se mostró una guía local.";
-            if (!limited) { ShowReply(profile,reply); return true; }
+            if (!limited) { RememberTurn(profile,message,reply); ShowReply(profile,reply); return true; }
             return false;
         }
         finally
