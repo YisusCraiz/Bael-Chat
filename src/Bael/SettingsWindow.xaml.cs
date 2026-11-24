@@ -242,6 +242,12 @@ public partial class SettingsWindow : Window
         }
     }
 
+    internal void FocusDocuments(ChatMode mode)
+    {
+        DocumentsTab.IsSelected=true;
+        DocumentMode.SelectedIndex=Array.IndexOf(Enum.GetValues<ChatMode>(),mode);
+    }
+
     private void StoreDocumentRule()
     {
         if (editingDocumentMode is not ChatMode mode)

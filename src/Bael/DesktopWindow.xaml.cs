@@ -78,7 +78,7 @@ public partial class DesktopWindow : Window
         };
         chat.SpeechNoticeChanged += text => { if (!string.IsNullOrWhiteSpace(text)) ShowBubble(selectedMode, text); };
         BuildWheel();
-        SetOutfit("boy");
+        SetOutfit(chat.StudentView?"unicorn":"boy");
         Loaded += (_, _) =>
         {
             ApplyMascotScale();
@@ -122,7 +122,14 @@ public partial class DesktopWindow : Window
             messages.Clear();
             lastActivity = Environment.TickCount64;
             actionUntil = lastActivity + 1800;
-            SetOutfit(Responses.Sprite(selected));
+            SetOutfit(chat.StudentView?"unicorn":Responses.Sprite(selected));
+        };
+        chat.AccessChanged += student =>
+        {
+            ModeWheel.IsOpen=false; motion.Stop(); danceRoutine.Reset(); dancing=false; transition=null;
+            audioMonitor.Dispose();
+            DesktopAccess.Content=student?"Desbloquear":"Alumnos";
+            SetOutfit(student?"unicorn":Responses.Sprite(selectedMode));
         };
         chat.SettingsChanged += updated =>
         {
@@ -203,6 +210,15 @@ public partial class DesktopWindow : Window
         if (WheelCanvas.Children.Count != Enum.GetValues<ChatMode>().Length + 2)
             throw new InvalidOperationException("Faltan burbujas de la rueda.");
 
+        chat.SetStudentView(true);
+        Left=100; Top=100;
+        double fixedLeft=Left,fixedTop=Top;
+        Tick(null,EventArgs.Empty); MoveFreely(null,EventArgs.Empty); Interact(); OnMessage();
+        if(Left!=fixedLeft || Top!=fixedTop || outfit!="unicorn" || selectedMode!=ChatMode.Student)
+            throw new InvalidOperationException("El unicornio de alumnos caminó o perdió su disfraz.");
+        chat.SelectMode(ChatMode.Gamer);
+        if(selectedMode!=ChatMode.Student) throw new InvalidOperationException("La rueda saltó el acceso de alumnos.");
+        chat.SetStudentView(false);
         if (danceFrames.Length != 20 || danceFrames.Any(image => image.PixelWidth == 0))
             throw new InvalidOperationException("Faltan los sprites de baile.");
         foreach (var sequence in frames.Values)
@@ -257,6 +273,7 @@ public partial class DesktopWindow : Window
 
     private void Interact()
     {
+        if(chat.StudentView) { lastActivity=Environment.TickCount64; return; }
         chatterClock.Reset(Environment.TickCount64, settings.SpontaneousSeconds);
         lastActivity = Environment.TickCount64;
         transition = null;
@@ -272,7 +289,7 @@ public partial class DesktopWindow : Window
         Interact();
         long now = Environment.TickCount64;
         actionUntil = now + 2400;
-        if (selectedMode != ChatMode.Student)
+        if (chat.StudentView || selectedMode != ChatMode.Student)
             return;
         messages.Enqueue(now);
         while (messages.Count > 0 && now - messages.Peek() > 60000)
@@ -287,6 +304,13 @@ public partial class DesktopWindow : Window
     private void Tick(object? sender, EventArgs e)
     {
         long now = Environment.TickCount64;
+        if(chat.StudentView)
+        {
+            dancing=false; transition=null; motion.Stop();
+            Character.Source=frames["unicorn"][chat.CurrentStage==AssistantStage.Idle ? (frame++%45>=42?1:0)
+                : ConversationActivity.Pose(chat.CurrentStage,(now-conversationPoseStarted)/1000.0).Frame];
+            return;
+        }
         long idleDelay = Math.Clamp(settings.IdleSeconds, 10, 300) * 1000L;
         bool interacting = IsMouseOver || dragStart is not null || settingsOpen || ModeWheel.IsOpen || chat.CurrentStage != AssistantStage.Idle;
         float level = settings.DanceWithAudio ? audioMonitor.ReadLevel(now) : 0;
@@ -364,7 +388,7 @@ public partial class DesktopWindow : Window
     {
         double seconds = Stopwatch.GetElapsedTime(movementTimestamp).TotalSeconds;
         movementTimestamp = Stopwatch.GetTimestamp();
-        bool paused = !settings.Walk || IsMouseOver || dragStart is not null || settingsOpen
+        bool paused = chat.StudentView || !settings.Walk || IsMouseOver || dragStart is not null || settingsOpen
             || chat.IsVisible || ModeWheel.IsOpen || AnswerBubble.IsOpen || transition is not null || danceRoutine.Active || chat.CurrentStage != AssistantStage.Idle;
         if (paused)
             motion.Stop();
@@ -521,8 +545,11 @@ public partial class DesktopWindow : Window
         e.Handled = true;
     }
 
+    private void ToggleAccess(object sender,RoutedEventArgs e) => chat.SetStudentView(!chat.StudentView);
+
     private void ToggleWheel()
     {
+        if(chat.StudentView) { ShowBubble(ChatMode.Student,"Pulsa Desbloquear para acceder a los otros modos."); return; }
         lastActivity = Environment.TickCount64;
         ModeWheel.IsOpen = !ModeWheel.IsOpen;
         if (ModeWheel.IsOpen)
@@ -531,7 +558,9 @@ public partial class DesktopWindow : Window
 
     private void WheelKey(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape)
+        if(e.Key==Key.L && Keyboard.Modifiers==(ModifierKeys.Control|ModifierKeys.Shift))
+        { chat.SetStudentView(!chat.StudentView); e.Handled=true; }
+        else if (e.Key == Key.Escape)
         {
             ModeWheel.IsOpen = false;
             e.Handled = true;

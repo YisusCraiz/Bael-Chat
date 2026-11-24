@@ -8,9 +8,9 @@
     <Grid>
     <Viewbox Stretch="Uniform">
     <Grid Width="300" Height="300">
-        <Image x:Name="Character" Margin="30,30,30,25" Stretch="Uniform" RenderTransformOrigin="0.5,0.5"
+        <Image x:Name="Character" Margin="30,30,30,42" Stretch="Uniform" RenderTransformOrigin="0.5,0.5"
                MouseRightButtonUp="OpenWheel" MouseLeftButtonDown="BeginDrag" MouseMove="MoveDrag" MouseLeftButtonUp="EndDrag"
-               AutomationProperties.Name="Chico BAEL. Pulsa para hablar o arrastra para mover."
+               AutomationProperties.Name="Unicornio BAEL. Pulsa para hablar o arrastra para mover."
                ToolTip="Pulsa para hablar. Arrastra para mover. Shift + clic derecho abre los modos y ajustes.">
             <Image.RenderTransform>
                 <TransformGroup>
@@ -20,6 +20,10 @@
                 </TransformGroup>
             </Image.RenderTransform>
         </Image>
+        <WrapPanel VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,4">
+            <Button Content="Ajustes" Click="ShowSettings" Padding="9,5" />
+            <Button x:Name="DesktopAccess" Content="Desbloquear" Click="ToggleAccess" Padding="9,5" ToolTip="Todos los modos · Ctrl + Shift + L con BAEL enfocado" />
+        </WrapPanel>
         <Border x:Name="ActivityBadge" Visibility="Collapsed" IsHitTestVisible="False" VerticalAlignment="Top" Margin="30,2,30,0" Background="#F2FAF7FF" BorderBrush="#B8A4DE" BorderThickness="1" CornerRadius="12" Padding="8,5">
             <TextBlock x:Name="ActivityBadgeText" TextAlignment="Center" FontSize="11" FontWeight="SemiBold" Foreground="#574077" />
         </Border>

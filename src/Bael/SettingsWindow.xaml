@@ -112,7 +112,7 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
-            <TabItem Header="Documentos">
+            <TabItem x:Name="DocumentsTab" Header="Documentos">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="18">
                         <TextBlock Text="Tu material de consulta" FontSize="19" FontWeight="SemiBold" />

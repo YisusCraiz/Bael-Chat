@@ -18,6 +18,34 @@ namespace Bael;
 public partial class MainWindow : Window
 {
     internal BaelSettings CurrentSettings => settings;
+    internal bool StudentView { get; private set; }
+    internal event Action<bool>? AccessChanged;
+    private BaelSettings QuerySettings
+    {
+        get
+        {
+            if(!StudentView) return settings;
+            var rules=settings.DocumentRules is null ? new Dictionary<ChatMode,DocumentRule>() : new Dictionary<ChatMode,DocumentRule>(settings.DocumentRules);
+            rules[ChatMode.Student]=settings.GetDocumentRule(ChatMode.Student) with { Limited=true };
+            return settings with { DocumentRules=rules };
+        }
+    }
+    internal void SetStudentView(bool student)
+    {
+        StudentView=student;
+        CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
+        games?.Close(); games=null;
+        SelectMode(student?ChatMode.Student:ChatMode.Free);
+        ApplySettings();
+        AccessChanged?.Invoke(student);
+    }
+    private void ToggleAccess(object sender,RoutedEventArgs e) => SetStudentView(!StudentView);
+    private void AccessKey(object sender,KeyEventArgs e)
+    {
+        if(e.Key==Key.L && Keyboard.Modifiers==(ModifierKeys.Control|ModifierKeys.Shift))
+        { SetStudentView(!StudentView); e.Handled=true; }
+    }
+    private void OpenDocuments(object sender,RoutedEventArgs e) => EditSettings(this,true);
     internal event Action? UserSpoke;
     internal event Action<string>? SpeechNoticeChanged;
     internal bool IsCapturingVoice => speechRequest is not null;
@@ -199,12 +227,14 @@ public partial class MainWindow : Window
     {
         CancelSpontaneous();
         if (mode != selected) { pdfQuiz.Stop(); activities.Stop(mode); replyRequest?.Cancel(); StopVoice(); }
+        if(StudentView && selected!=ChatMode.Student)
+        { ChatStatus.Text="Vista de alumnos: pulsa Desbloquear BAEL para acceder a los otros modos."; return; }
         mode = selected;
         ModeLabel.Text = $"Modo {Responses.Name(mode).ToLowerInvariant()}";
         UpdateActivities();
         RenderConversation();
         ModeChanged?.Invoke(mode);
-        ChatStatus.Text = settings.GetDocumentRule(mode).Limited
+        ChatStatus.Text = QuerySettings.GetDocumentRule(mode).Limited
             ? "Solo documentos · Consulta los PDF asignados en Ajustes."
             : mode == ChatMode.System
             ? "Escribe diagnóstico para una revisión local básica."
@@ -215,11 +245,12 @@ public partial class MainWindow : Window
 
     internal void OpenConversation() { Chat.Visibility = Visibility.Visible; Message.Focus(); }
 
-    internal void EditSettings(Window owner)
+    internal void EditSettings(Window owner,bool documents=false)
     {
         pdfQuiz.Stop();
         CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
         var dialog = new SettingsWindow(settings, settingsUnreadable, OpenMemory) { Owner = owner, Topmost = owner.Topmost };
+        if(documents) dialog.FocusDocuments(mode);
         dialog.LoadAudioDevices();
         if (dialog.ShowDialog() == true)
         {
@@ -248,9 +279,10 @@ public partial class MainWindow : Window
     private bool finishRecording;
     private ChatMode mode = ChatMode.Student;
 
-    public MainWindow() : this(new MemoryJournal()) { }
-    internal MainWindow(MemoryJournal journal)
+    public MainWindow() : this(new MemoryJournal(),true) { }
+    internal MainWindow(MemoryJournal journal,bool studentView=false)
     {
+        StudentView=studentView;
         memoryJournal=journal; memory=journal.Loaded.Snapshot(); histories=memory.Context;
         InitializeComponent();
         settings = BaelSettings.Load(out settingsUnreadable);
@@ -278,6 +310,25 @@ public partial class MainWindow : Window
             ReleaseAudio();
             memoryJournal.Flush();
         };
+    }
+
+    internal async Task VerifyStudentViewAsync()
+    {
+        SetStudentView(true);
+        if(mode!=ChatMode.Student || Modes.Visibility!=Visibility.Collapsed || MemoryButton.Visibility!=Visibility.Collapsed
+            || ChatSurface.Background is not SolidColorBrush brush || brush.Color.A!=255 || !QuerySettings.GetDocumentRule(mode).Limited)
+            throw new InvalidOperationException("La vista de alumnos no arrancó sólida y limitada a documentos.");
+        SelectMode(ChatMode.Gamer);
+        if(mode!=ChatMode.Student) throw new InvalidOperationException("Un modo saltó el acceso de alumnos.");
+        Message.Text="cambia al modo libre"; await SendCurrentMessage();
+        if(mode!=ChatMode.Student || latestReply is null || !latestReply.Contains("Desbloquear")) throw new InvalidOperationException("Un comando desbloqueó los modos.");
+        SetStudentView(false);
+        if(mode!=ChatMode.Free || Modes.Visibility!=Visibility.Visible) throw new InvalidOperationException("No se desbloquearon los modos.");
+        SelectMode(ChatMode.English);
+        if(mode!=ChatMode.English) throw new InvalidOperationException("Los modos siguen bloqueados.");
+        SetStudentView(true);
+        if(mode!=ChatMode.Student || Modes.Visibility!=Visibility.Collapsed) throw new InvalidOperationException("No se restauró la vista de alumnos.");
+        SetStudentView(false);
     }
 
     internal void VerifyStartup()
@@ -417,8 +468,14 @@ public partial class MainWindow : Window
     private void UpdateActivities()
     {
         ActivityButtons.Children.Clear();
-        ModeDescription.Text = ModeActivities.Description(mode);
-        foreach (var activity in settings.GetDocumentRule(mode).Limited ? PdfStudy.Activities(mode) : ModeActivities.Catalog(mode))
+        Modes.Visibility=StudentView?Visibility.Collapsed:Visibility.Visible;
+        MemoryButton.Visibility=StudentView?Visibility.Collapsed:Visibility.Visible;
+        AccessButton.Content=StudentView?"Desbloquear BAEL":"Volver a alumnos";
+        var rule=QuerySettings.GetDocumentRule(mode);
+        int assigned=settings.Documents.Count(d=>rule.DocumentIds.Contains(d.Id));
+        DocumentStatus.Text=rule.Limited?$"Material del modo: {assigned} PDF · Respuestas breves con fuentes":"Material opcional · Activa el límite en Ajustes → Documentos";
+        ModeDescription.Text = StudentView ? "Aula BAEL · Sube tus PDF, pregunta por un concepto y recibe un resumen con su página de origen." : ModeActivities.Description(mode);
+        foreach (var activity in QuerySettings.GetDocumentRule(mode).Limited ? PdfStudy.Activities(mode) : ModeActivities.Catalog(mode))
         {
             var button = new Button { Content = activity.Label, ToolTip = activity.Prompt,
                 Padding = new Thickness(10, 6, 10, 6), FontSize = 12 };
@@ -459,16 +516,22 @@ public partial class MainWindow : Window
         }
     }
 
+    private string ModeHelp() => StudentView
+        ? "Soy BAEL en el aula. Pulsa Subir PDF para añadir y asignar material. Pregunta por un concepto y te mostraré un resumen breve con archivo y página. Sin API selecciono frases del texto; con explicación asistida activada puedo redactarlo usando esos fragmentos. Si falta información lo indicaré. Puedes pedir Resumen, Explicar, Repaso o Buscar tema. Ajustes configura voz, APIs y documentos. Desbloquear BAEL abre los otros modos; Volver a alumnos regresa a esta vista. El unicornio se puede arrastrar y no camina solo."
+        : AssistantCommands.Help(mode, QuerySettings);
+
     private void ExplainFunctions(object sender, RoutedEventArgs e)
-    { ShowReply(mode, AssistantCommands.Help(mode, settings)); }
+    { ShowReply(mode, ModeHelp()); }
 
     private bool HandleAssistantCommand(string message)
     {
         var command = AssistantCommands.Parse(message);
+        if(StudentView && command.Kind is AssistantCommandKind.AllModes or AssistantCommandKind.ChooseMode or AssistantCommandKind.ChangeMode)
+        { ShowReply(mode,"Estás en el chat de alumnos. Pulsa Desbloquear BAEL para acceder al personaje libre y sus otros modos."); return true; }
         switch (command.Kind)
         {
             case AssistantCommandKind.Help:
-                ShowReply(mode, AssistantCommands.Help(mode, settings)); return true;
+                ShowReply(mode, ModeHelp()); return true;
             case AssistantCommandKind.AllModes:
             case AssistantCommandKind.ChooseMode:
                 ShowReply(mode, AssistantCommands.AllModes()); return true;
@@ -489,6 +552,7 @@ public partial class MainWindow : Window
 
     private void OpenModes(object sender, RoutedEventArgs e)
     {
+        if(StudentView) return;
         var menu = new ContextMenu
         {
             PlacementTarget = Modes,
@@ -512,8 +576,7 @@ public partial class MainWindow : Window
     private void ApplySettings()
     {
         Topmost = settings.Topmost;
-        ChatSurface.Background = new SolidColorBrush(Color.FromArgb(
-            (byte)Math.Round(255 * (1 - Math.Clamp(settings.ChatTransparency, 0, 0.65))), 245, 243, 250));
+        ChatSurface.Background = new SolidColorBrush(Color.FromRgb(245,243,250));
         if (voiceVolume is not null)
             voiceVolume.Volume = (float)Math.Clamp(settings.Volume, 0, 1);
     }
@@ -534,7 +597,7 @@ public partial class MainWindow : Window
         if (!fromSpeech) timings = new ConversationTimings();
         UserSpoke?.Invoke();
         ChatMode profile = mode;
-        BaelSettings current = settings;
+        BaelSettings current = QuerySettings;
         AddUserMessage(message); Message.Clear(); Message.Focus(); ChatStatus.Text = "";
         if (HandleAssistantCommand(message)) { RefreshActivity(); return true; }
         bool limited = current.GetDocumentRule(profile).Limited;
@@ -562,8 +625,8 @@ public partial class MainWindow : Window
                 PdfEvidence evidence=await Task.Run(()=>PdfStudy.Retrieve(current,profile,message,request.Token),request.Token);
                 request.Token.ThrowIfCancellationRequested();
                 measured.Finish("PDF",started); pdfMeasured=true;
-                reply=evidence.Extracts(profile);
-                ChatStatus.Text="Solo documentos · Pasajes locales con archivo y página";
+                reply=PdfStudy.Brief(evidence,message);
+                ChatStatus.Text="Solo documentos · Resumen breve con archivo y página";
                 if(evidence.Task==PdfTask.Quiz && evidence.Complete && evidence.Sources.Length>0)
                     reply=pdfQuiz.Start(profile,evidence);
                 else if(current.GetDocumentRule(profile).Assisted && current.OnlineChat && evidence.Complete && evidence.Sources.Length>0)
@@ -574,8 +637,8 @@ public partial class MainWindow : Window
                         ChatResult assisted=await router.ReplyFromDocumentsAsync(current,profile,message,evidence.Sources,request.Token,
                             new Progress<string>(status=> { if(!isClosed && replyRequest==request && !request.IsCancellationRequested) ChatStatus.Text=status; }));
                         if(assisted.Text is not null && PdfStudy.TryExplanation(assisted.Text,evidence.Sources,out string explanation))
-                        { reply=explanation; ChatStatus.Text="Explicación con IA · citas y pasajes literales comprobados"; }
-                        else ChatStatus.Text="Se muestran pasajes locales: no llegó una explicación con citas válidas.";
+                        { reply=explanation; ChatStatus.Text="Explicación con IA · citas comprobadas contra el material"; }
+                        else ChatStatus.Text="Se muestra un resumen extractivo: no llegó una explicación con citas válidas.";
                     }
                     finally { measured.Finish("IA de PDF",assistedStarted); }
                 }

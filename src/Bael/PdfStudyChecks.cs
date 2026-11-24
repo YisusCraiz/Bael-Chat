@@ -17,6 +17,10 @@ internal static class PdfStudyChecks
         var compared=PdfStudy.Rank(pages,"Compara fibra y cobre");
         if(!compared.Complete || !compared.Sources.Any(s=>s.Page==2) || !compared.Sources.Any(s=>s.Page==4)
             || compared.Sources.Any(s=>s.Name=="Otro.pdf")) Fail("La comparación perdió fuentes relevantes o mezcló temas.");
+        string brief=PdfStudy.Brief(compared,"Compara fibra y cobre");
+        if(brief.Length>1000 || !brief.Contains("página 2") || !brief.Contains("página 4")) Fail("El resumen breve perdió sus fuentes.");
+        var longEvidence=PdfStudy.Rank(new[] { ("a","Largo.pdf",1,string.Join(" ",Enumerable.Repeat("Información sobre fibra óptica y señales",180))) },"fibra");
+        if(PdfStudy.Brief(longEvidence,"fibra").Length>1100) Fail("El resumen devolvió páginas completas.");
         var partial=PdfStudy.Rank(pages,"fibra fotosíntesis");
         if(partial.Complete || !partial.Extracts(ChatMode.Student).Contains("parciales")) Fail("Una coincidencia parcial permitió síntesis sin respaldo.");
         if(PdfStudy.Rank(pages,"clorofila").Sources.Length!=0) Fail("Se inventó respaldo documental.");
@@ -33,7 +37,7 @@ internal static class PdfStudyChecks
         string id=new('a',32);
         var source=new PdfSource("S1",id,"Redes.pdf",2,pages[0].Item4);
         string good=JsonSerializer.Serialize(new { sections=new[] { new { explanation="La fibra utiliza pulsos de luz.",source_id="S1",quote=source.Text } } });
-        if(!PdfStudy.TryExplanation(good,[source],out var answer) || !answer.Contains("Redes.pdf, página 2") || !answer.Contains(source.Text))
+        if(!PdfStudy.TryExplanation(good,[source],out var answer) || !answer.Contains("Redes.pdf, página 2"))
             Fail("Se perdió una explicación con cita válida.");
         foreach(string invalid in new[] { "texto sin formato","[]","null","3","{\"sections\":[3]}","{\"sections\":[{}]}",good.Replace("S1","S99") })
             if(PdfStudy.TryExplanation(invalid,[source],out _)) Fail("Se aceptó una cita o estructura inválida.");

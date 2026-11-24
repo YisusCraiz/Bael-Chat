@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="BAEL-UMAN · Conversación" Icon="Assets/bael-unicorn.ico"
         Width="640" Height="740" MinWidth="540" MinHeight="580"
-        Topmost="True" WindowStartupLocation="Manual" WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="CanResizeWithGrip">
+        Topmost="True" WindowStartupLocation="Manual" WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="CanResizeWithGrip" PreviewKeyDown="AccessKey">
     <Border x:Name="ChatSurface" CornerRadius="18" BorderBrush="#AAC8B7EE" BorderThickness="1">
     <Grid x:Name="Chat" Margin="20">
         <Grid.RowDefinitions>
@@ -18,15 +18,21 @@
                 <TextBlock Text="BAEL-UMAN" FontSize="22" FontWeight="Bold" />
                 <TextBlock x:Name="ModeLabel" Text="Modo estudiante" Foreground="#776C90" Margin="0,5,0,0" />
             </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal">
+            <WrapPanel Grid.Column="1" MaxWidth="340" HorizontalAlignment="Right">
                 <Button Content="Funciones" Click="ExplainFunctions" ToolTip="Ver funciones del modo actual" Background="White" Foreground="#594C76" />
-                <Button Content="Memoria" Click="ManageMemory" ToolTip="Historial y recuerdos por modo" />
+                <Button x:Name="MemoryButton" Content="Memoria" Click="ManageMemory" ToolTip="Historial y recuerdos por modo" />
                 <Button x:Name="Modes" Content="Modo" Click="OpenModes" ToolTip="Cambiar el modo del personaje" />
+                <Button Content="Ajustes" Click="OpenSettings" ToolTip="Configurar BAEL" />
+                <Button x:Name="AccessButton" Content="Desbloquear BAEL" Click="ToggleAccess" ToolTip="Acceder a todos los modos · Ctrl + Shift + L con BAEL enfocado" />
                 <Button Content="Ocultar" Click="HideChat" Background="White" Foreground="#594C76" />
-            </StackPanel>
+            </WrapPanel>
         </Grid>
         <TextBlock x:Name="ModeDescription" TextWrapping="Wrap" Foreground="#776C90" Margin="0,0,0,6" />
         <TextBlock x:Name="MemoryStatus" TextWrapping="Wrap" FontSize="11" Foreground="#776C90" Margin="0,0,0,5" />
+        <DockPanel Margin="0,0,0,8">
+            <Button Content="Subir PDF" Click="OpenDocuments" DockPanel.Dock="Right" ToolTip="Añadir y asignar material al modo actual" />
+            <TextBlock x:Name="DocumentStatus" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="12" Foreground="#665391" />
+        </DockPanel>
         <WrapPanel x:Name="ActivityButtons" />
         </StackPanel>
         <Border Grid.Row="1" Background="Transparent" CornerRadius="18" BorderBrush="#E9E3F2" BorderThickness="1" Padding="8">
@@ -82,7 +88,7 @@
             <TextBlock x:Name="ChatStatus" TextWrapping="Wrap" Foreground="#776C90" Margin="0,0,0,7"
                        AutomationProperties.LiveSetting="Polite" />
             <Grid>
-                <TextBox x:Name="Message" Height="76" Background="#BBFFFFFF" AcceptsReturn="True" TextWrapping="Wrap"
+                <TextBox x:Name="Message" Height="76" Background="#FFFFFFFF" AcceptsReturn="True" TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto" PreviewKeyDown="MessageKey"
                          AutomationProperties.Name="Escribe tu mensaje" />
                 <TextBlock Text="Escribe aquí…  Enter envía · Shift + Enter añade una línea"

@@ -15,6 +15,7 @@ public partial class App : Application
             {
                 var window = new MainWindow(MemoryJournal.Volatile());
                 window.VerifyStartup();
+                await window.VerifyStudentViewAsync();
                 await window.VerifySpontaneousAsync();
                 await window.VerifyCommandsAsync();
                 await window.VerifyVoiceInterruptionAsync();
