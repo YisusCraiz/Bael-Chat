@@ -109,7 +109,7 @@ internal static class PdfStudy
         var candidates=evidence.Sources.SelectMany(source=>Regex.Split(source.Text,@"(?<=[.!?])\s+")
             .Where(sentence=>sentence.Length>=15)
             .Select(sentence=>(Source:source,Text:sentence.Trim(),Score:Terms(sentence).Intersect(terms).Count())));
-        var chosen=candidates.OrderByDescending(c=>c.Score).DistinctBy(c=>c.Text).Take(3).ToArray();
+        var chosen=candidates.Where(c=>terms.Count==0 || c.Score>0).OrderByDescending(c=>c.Score).DistinctBy(c=>c.Text).Take(3).ToArray();
         if(chosen.Length==0) return evidence.Message.Length>0?evidence.Message:"No hay texto suficiente para resumir ese tema.";
         string Short(string value)
         {

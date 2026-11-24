@@ -21,6 +21,9 @@ internal static class PdfStudyChecks
         if(brief.Length>1000 || !brief.Contains("página 2") || !brief.Contains("página 4")) Fail("El resumen breve perdió sus fuentes.");
         var longEvidence=PdfStudy.Rank(new[] { ("a","Largo.pdf",1,string.Join(" ",Enumerable.Repeat("Información sobre fibra óptica y señales",180))) },"fibra");
         if(PdfStudy.Brief(longEvidence,"fibra").Length>1100) Fail("El resumen devolvió páginas completas.");
+        var noisy=PdfStudy.Rank(new[] { ("a","Mezcla.pdf",1,"La fibra transporta luz. Los planetas giran alrededor del sol. Las plantas necesitan agua.") },"fibra");
+        string focused=PdfStudy.Brief(noisy,"fibra");
+        if(!focused.Contains("fibra transporta luz") || focused.Contains("planetas") || focused.Contains("plantas")) Fail("El resumen mezcló frases ajenas a la pregunta.");
         var partial=PdfStudy.Rank(pages,"fibra fotosíntesis");
         if(partial.Complete || !partial.Extracts(ChatMode.Student).Contains("parciales")) Fail("Una coincidencia parcial permitió síntesis sin respaldo.");
         if(PdfStudy.Rank(pages,"clorofila").Sources.Length!=0) Fail("Se inventó respaldo documental.");
