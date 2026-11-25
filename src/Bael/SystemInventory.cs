@@ -19,7 +19,7 @@ internal sealed record RamStick(string Slot,long Bytes,int Type,int Form,int Spe
     public string Size=>SystemMetrics.Size(Bytes);
     public string Kind=>Type switch { 26=>"DDR4",34=>"DDR5",24=>"DDR3",30=>"LPDDR4",35=>"LPDDR5",_=>$"SMBIOS {Type} (no identificado)" };
     public string Format=>Form switch {8=>"DIMM",12=>"SO-DIMM",_=>"No confirmado"};
-    public string Frequency=>$"Configurada: {(Configured>0?Configured.ToString():"N/D")} · nominal: {(Speed>0?Speed.ToString():"N/D")} MHz según WMI";
+    public string Frequency=>$"Configurada (WMI): {(Configured>0?Configured.ToString():"N/D")} MHz · Speed nominal: {(Speed>0?Speed.ToString():"N/D")} (valor bruto)";
 }
 internal sealed record RamArray(int Slots,long MaximumKb);
 internal sealed record HardwarePart(string Name,string Detail,string Status);

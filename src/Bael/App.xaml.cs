@@ -8,6 +8,18 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if(e.Args is ["--system-inventory-test",var inventoryPath])
+        {
+            ShutdownMode=ShutdownMode.OnExplicitShutdown;
+            try
+            {
+                var data=await SystemInventory.ReadAsync(CancellationToken.None);
+                File.WriteAllText(inventoryPath,$"OK · CPU: {data.Cpu.Length} · módulos RAM: {data.Ram.Length} · discos: {data.Disks.Length} · notas: {data.Notes.Length}");
+                Shutdown(0);
+            }
+            catch(Exception error) { File.WriteAllText(inventoryPath,error.ToString()); Shutdown(1); }
+            return;
+        }
         if (e.Args is ["--smoke-test", var resultPath])
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

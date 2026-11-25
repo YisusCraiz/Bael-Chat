@@ -39,6 +39,16 @@ jobs:
             throw "Falló la prueba de BAEL: $report"
           }
           Write-Host "Ventana, chat y perfiles verificados."
+      - name: Probar lectura local de inventario en Windows
+        shell: pwsh
+        run: |
+          $result = Join-Path $env:RUNNER_TEMP "bael-inventory.txt"
+          $process = Start-Process -FilePath "./publish/BAEL-UMAN.exe" -ArgumentList '--system-inventory-test', ('"' + $result + '"') -PassThru
+          if (!$process.WaitForExit(45000)) { Stop-Process $process.Id -ErrorAction SilentlyContinue; throw "La lectura del inventario no terminó." }
+          if (!(Test-Path $result)) { throw "El lector no dejó resultado." }
+          $report = Get-Content $result -Raw
+          if ($process.ExitCode -ne 0 -or !$report.StartsWith('OK')) { throw "Falló la lectura de hardware: $report" }
+          Write-Host $report
       - name: Crear instalador de Windows
         shell: pwsh
         run: |
