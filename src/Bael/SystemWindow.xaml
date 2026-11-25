@@ -1,0 +1,65 @@
+<Window x:Class="Bael.SystemWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="BAEL · Centro del sistema" Icon="Assets/bael-unicorn.ico" Width="1050" Height="760" MinWidth="800" MinHeight="620" WindowStartupLocation="CenterOwner">
+ <Window.Resources>
+  <Style TargetType="DataGrid"><Setter Property="Foreground" Value="{DynamicResource UiText}"/><Setter Property="Background" Value="{DynamicResource UiInput}"/><Setter Property="RowBackground" Value="{DynamicResource UiPanel}"/><Setter Property="AlternatingRowBackground" Value="{DynamicResource UiInset}"/><Setter Property="BorderBrush" Value="{DynamicResource UiBorder}"/></Style>
+  <Style TargetType="DataGridColumnHeader"><Setter Property="Foreground" Value="{DynamicResource UiText}"/><Setter Property="Background" Value="{DynamicResource UiSurface}"/><Setter Property="Padding" Value="8"/></Style>
+ </Window.Resources>
+ <Grid Margin="22">
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <DockPanel>
+   <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button x:Name="RefreshButton" Content="Revisar hardware" Click="RefreshHardware"/><Button x:Name="CancelButton" Content="Cancelar" Click="CancelWork" IsEnabled="False"/></StackPanel>
+   <StackPanel><TextBlock Text="Centro del sistema" FontSize="25" FontWeight="Bold"/><TextBlock Text="Explora, entiende y decide · datos locales, sin enviar inventario a las APIs" Foreground="{DynamicResource UiMuted}" Margin="0,6,0,10"/></StackPanel>
+  </DockPanel>
+  <Border Grid.Row="1" Background="{DynamicResource UiPanel}" CornerRadius="14" Padding="14" Margin="0,4,0,14">
+   <UniformGrid Columns="2">
+    <StackPanel Margin="0,0,20,0"><TextBlock x:Name="CpuLabel" Text="CPU · esperando muestra" FontWeight="SemiBold"/><ProgressBar x:Name="CpuBar" Maximum="100" Height="10" Margin="0,8,0,6"/><Canvas x:Name="HistoryCanvas" Height="40" ClipToBounds="True" Background="{DynamicResource UiInset}"><Polyline x:Name="CpuHistory" Stroke="#7460C8" StrokeThickness="2"/></Canvas><TextBlock Text="Uso de CPU · últimas 60 muestras (1 s)" FontSize="10" Foreground="{DynamicResource UiMuted}"/></StackPanel>
+    <StackPanel><TextBlock x:Name="RamLabel" Text="RAM · leyendo uso" FontWeight="SemiBold"/><ProgressBar x:Name="RamBar" Maximum="100" Height="10" Margin="0,8,0,6"/><TextBlock x:Name="RamUsage" TextWrapping="Wrap"/><TextBlock Text="Son muestras de uso; no certifican la salud del equipo." FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource UiMuted}" Margin="0,8,0,0"/></StackPanel>
+   </UniformGrid>
+  </Border>
+  <TabControl x:Name="Tabs" Grid.Row="2">
+   <TabItem Header="Resumen"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="16">
+    <TextBlock x:Name="ComputerName" Text="Pulsa Revisar hardware para conocer el equipo." FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap"/>
+    <TextBlock x:Name="Recommendations" Text="Puedes buscar archivos o analizar temporales sin esperar la revisión de hardware." TextWrapping="Wrap" Margin="0,10,0,16"/>
+    <TextBlock Text="Espacio en las unidades" FontSize="17" FontWeight="SemiBold"/>
+    <ItemsControl x:Name="Volumes"><ItemsControl.ItemTemplate><DataTemplate><Border Background="{DynamicResource UiPanel}" CornerRadius="12" Padding="12" Margin="0,8,0,0"><StackPanel><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><ProgressBar Value="{Binding UsedPercent}" Maximum="100" Height="10" Margin="0,7,0,7"/><TextBlock Text="{Binding Detail}" TextWrapping="Wrap"/></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+    <TextBlock x:Name="VolumeNotes" TextWrapping="Wrap" Margin="0,8,0,0"/>
+   </StackPanel></ScrollViewer></TabItem>
+   <TabItem Header="Discos"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="16">
+    <TextBlock Text="Fiabilidad informada por el controlador" FontSize="18" FontWeight="SemiBold"/>
+    <TextBlock Text="Estado, temperatura, desgaste y horas solo aparecen si Windows puede leerlos. N/D no significa disco sano. El desgaste no predice una fecha de fallo; un estado Healthy tampoco garantiza que no vaya a fallar." TextWrapping="Wrap" Margin="0,8,0,10"/>
+    <ItemsControl x:Name="DiskCards"><ItemsControl.ItemTemplate><DataTemplate><Border Background="{DynamicResource UiPanel}" CornerRadius="12" Padding="14" Margin="0,0,0,10"><StackPanel>
+     <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="Bold"/><TextBlock Text="{Binding State}" Foreground="{DynamicResource UiAccent}" FontWeight="SemiBold"/><WrapPanel Margin="0,5,0,6"><TextBlock Text="{Binding Media}" Margin="0,0,14,0"/><TextBlock Text="{Binding Bus}" Margin="0,0,14,0"/><TextBlock Text="{Binding Size}"/></WrapPanel>
+     <TextBlock Text="{Binding Operation}"/><TextBlock Text="{Binding TemperatureText, StringFormat='Temperatura: {0}'}"/><TextBlock Text="{Binding WearText, StringFormat='Desgaste: {0}'}"/><TextBlock Text="{Binding HoursText, StringFormat='Encendido: {0}'}"/><TextBlock Text="{Binding ErrorText, StringFormat='Errores no corregidos: {0}'}"/>
+    </StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+    <TextBlock x:Name="DiskNotes" Text="Pulsa Revisar hardware. Algunos controladores o adaptadores USB no exponen estos datos; también pueden requerir permisos elevados." TextWrapping="Wrap"/>
+   </StackPanel></ScrollViewer></TabItem>
+   <TabItem Header="RAM"><Grid Margin="16"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <TextBlock x:Name="RamAdvice" Text="Revisa el hardware para conocer módulos, ubicaciones y capacidad declarada." TextWrapping="Wrap" Margin="0,0,0,14"/>
+    <DataGrid x:Name="RamModules" Grid.Row="1" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False"><DataGrid.Columns>
+     <DataGridTextColumn Header="Ubicación" Binding="{Binding Slot}" Width="100"/><DataGridTextColumn Header="Capacidad" Binding="{Binding Size}" Width="90"/><DataGridTextColumn Header="Tipo" Binding="{Binding Kind}" Width="90"/><DataGridTextColumn Header="Formato" Binding="{Binding Format}" Width="90"/><DataGridTextColumn Header="Velocidad reportada" Binding="{Binding Frequency}" Width="290"/><DataGridTextColumn Header="Fabricante" Binding="{Binding Maker}" Width="110"/><DataGridTextColumn Header="Referencia" Binding="{Binding Part}" Width="150"/>
+    </DataGrid.Columns></DataGrid>
+   </Grid></TabItem>
+   <TabItem Header="Buscar archivos"><Grid Margin="16"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <TextBlock Text="Busca por nombre en una unidad o carpeta. Archivos grandes muestra los 200 mayores encontrados (desde 10 MB). No se siguen enlaces ni se abre el contenido de los archivos." TextWrapping="Wrap" Margin="0,0,0,8"/>
+    <DockPanel Grid.Row="1"><Button Content="Carpeta…" Click="PickFolder" DockPanel.Dock="Right"/><ComboBox x:Name="SearchRoot" IsEditable="True" MinWidth="180" ToolTip="Unidad o carpeta que quieres examinar"/></DockPanel>
+    <DockPanel Grid.Row="2" Margin="0,8,0,8"><Button Content="Buscar" Click="SearchFiles" DockPanel.Dock="Right"/><Button Content="Archivos grandes" Click="FindLarge" DockPanel.Dock="Right"/><TextBox x:Name="SearchName" ToolTip="Parte del nombre, por ejemplo tarea o .pdf" AutomationProperties.Name="Nombre del archivo"/></DockPanel>
+    <DataGrid x:Name="FileResults" Grid.Row="3" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"><DataGrid.Columns><DataGridTextColumn Header="Nombre" Binding="{Binding Name}" Width="200"/><DataGridTextColumn Header="Tamaño" Binding="{Binding Size}" Width="100"/><DataGridTextColumn Header="Carpeta" Binding="{Binding Folder}" Width="*"/><DataGridTextColumn Header="Modificado (UTC)" Binding="{Binding Modified}" Width="150"/></DataGrid.Columns></DataGrid>
+    <DockPanel Grid.Row="4" Margin="0,8,0,0"><Button Content="Mostrar carpeta" Click="RevealFile" DockPanel.Dock="Right"/><TextBlock x:Name="SearchReport" TextWrapping="Wrap" Text="Límite por recorrido: 30 s o 200.000 elementos. Una búsqueda parcial no representa todo el disco."/></DockPanel>
+   </Grid></TabItem>
+   <TabItem Header="Liberar espacio"><Grid Margin="16"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <TextBlock Text="Temporales de tu usuario sin escritura ni acceso en los últimos 7 días. Selecciona y pulsa Limpiar selección para eliminarlos definitivamente. Se omiten archivos en uso, protegidos, recientes, enlaces y carpetas BAEL. No borra documentos, Descargas, Papelera ni archivos de Windows." TextWrapping="Wrap" Margin="0,0,0,10"/>
+    <WrapPanel Grid.Row="1" Margin="0,0,0,8"><Button Content="Analizar temporales" Click="AnalyzeCleanup"/><Button Content="Seleccionar todo" Click="SelectAllCleanup"/><Button Content="Desmarcar todo" Click="ClearCleanup"/></WrapPanel>
+    <DataGrid x:Name="CleanFiles" Grid.Row="2" AutoGenerateColumns="False" CanUserAddRows="False"><DataGrid.Columns><DataGridCheckBoxColumn Header="Limpiar" Binding="{Binding Selected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="65"/><DataGridTextColumn IsReadOnly="True" Header="Nombre" Binding="{Binding Name}" Width="200"/><DataGridTextColumn IsReadOnly="True" Header="Tamaño" Binding="{Binding Size}" Width="100"/><DataGridTextColumn IsReadOnly="True" Header="Carpeta temporal" Binding="{Binding Folder}" Width="*"/></DataGrid.Columns></DataGrid>
+    <DockPanel Grid.Row="3" Margin="0,8,0,0"><Button x:Name="CleanButton" Content="Limpiar selección" Click="CleanSelected" IsEnabled="False" DockPanel.Dock="Right"/><TextBlock x:Name="CleanReport" Text="Primero analiza para revisar qué se puede liberar." TextWrapping="Wrap"/></DockPanel>
+   </Grid></TabItem>
+   <TabItem Header="Componentes"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="16">
+    <TextBlock Text="Inventario y señales de Windows" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="Esto no es una prueba eléctrica, térmica ni de estabilidad. No confirma que la placa, la fuente, la GPU o la RAM estén físicamente sanas. No modifica BIOS, controladores ni registro." TextWrapping="Wrap" Margin="0,8,0,12"/>
+    <ItemsControl x:Name="Parts"><ItemsControl.ItemTemplate><DataTemplate><Border Background="{DynamicResource UiPanel}" Padding="12" CornerRadius="10" Margin="0,0,0,8"><StackPanel><TextBlock Text="{Binding Name}" FontWeight="Bold"/><TextBlock Text="{Binding Detail}" TextWrapping="Wrap"/><TextBlock Text="{Binding Status, StringFormat='Estado WMI: {0}'}"/></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+    <TextBlock Text="Dispositivos con incidencias declaradas" FontSize="16" FontWeight="SemiBold" Margin="0,8,0,8"/>
+    <ItemsControl x:Name="Issues"><ItemsControl.ItemTemplate><DataTemplate><StackPanel Margin="0,0,0,8"><TextBlock Text="{Binding Name}" TextWrapping="Wrap"/><TextBlock Text="{Binding Code, StringFormat='Código del Administrador de dispositivos: {0}'}"/></StackPanel></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+    <TextBlock x:Name="ComponentNotes" Text="Pulsa Revisar hardware. La ausencia de incidencias detectadas no certifica que todo esté óptimo." TextWrapping="Wrap"/>
+   </StackPanel></ScrollViewer></TabItem>
+  </TabControl>
+  <TextBlock x:Name="WorkStatus" Grid.Row="3" Text="Listo · todo el análisis se realiza en tu PC" TextWrapping="Wrap" Margin="0,12,0,0" Foreground="{DynamicResource UiMuted}" AutomationProperties.LiveSetting="Polite"/>
+ </Grid>
+</Window>

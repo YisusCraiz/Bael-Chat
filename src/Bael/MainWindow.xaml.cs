@@ -35,6 +35,7 @@ public partial class MainWindow : Window
         StudentView=student;
         CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
         games?.Close(); games=null;
+        systemPanel?.Close(); systemPanel=null;
         SelectMode(student?ChatMode.Student:ChatMode.Free);
         ApplySettings();
         AccessChanged?.Invoke(student);
@@ -159,6 +160,7 @@ public partial class MainWindow : Window
     private readonly ModeActivities activities = new();
     private readonly PdfQuizSession pdfQuiz = new();
     private GameWindow? games;
+    private SystemWindow? systemPanel;
     private readonly Dictionary<ChatMode, List<ChatTurn>> histories;
     private readonly MemoryJournal memoryJournal;
     private readonly MemoryData memory;
@@ -229,6 +231,7 @@ public partial class MainWindow : Window
         if (mode != selected) { pdfQuiz.Stop(); activities.Stop(mode); replyRequest?.Cancel(); StopVoice(); }
         if(StudentView && selected!=ChatMode.Student)
         { ChatStatus.Text="Vista de alumnos: pulsa Desbloquear BAEL para acceder a los otros modos."; return; }
+        if(selected!=mode) { systemPanel?.Close(); systemPanel=null; }
         mode = selected;
         ModeLabel.Text = $"Modo {Responses.Name(mode).ToLowerInvariant()}";
         UpdateActivities();
@@ -300,6 +303,7 @@ public partial class MainWindow : Window
         {
             CancelSpontaneous();
             games?.Close();
+            systemPanel?.Close();
             isClosed = true;
             activityTimer.Stop();
             replyRequest?.Cancel();
@@ -482,6 +486,8 @@ public partial class MainWindow : Window
             button.Click += async (_, _) =>
             {
                 if (!SendButton.IsEnabled) return;
+                if(activity.Prompt is "@system" or "@files" or "@cleanup" or "@ram")
+                { OpenSystemPanel(activity.Prompt switch { "@files"=>3,"@cleanup"=>4,"@ram"=>2,_=>0 }); return; }
                 if(activity.Prompt=="@pdfsearch") { Message.Text="Buscar en mis PDF: "; Message.Focus(); Message.CaretIndex=Message.Text.Length; return; }
                 if (activity.Prompt is "@cups" or "@poker")
                 {
@@ -550,6 +556,30 @@ public partial class MainWindow : Window
         catch (System.Runtime.InteropServices.COMException) { ChatStatus.Text = "El portapapeles está ocupado. Intenta otra vez."; }
     }
 
+    private void OpenSystemPanel(int section)
+    {
+        if(StudentView || mode!=ChatMode.System || QuerySettings.GetDocumentRule(mode).Limited) return;
+        CancelSpontaneous(); speechRequest?.Cancel(); StopVoice();
+        if(systemPanel is null)
+        {
+            systemPanel=new SystemWindow(settings) { Owner=IsVisible?this:Application.Current.MainWindow,Topmost=Topmost };
+            systemPanel.Closed+=(_,_)=>systemPanel=null;
+        }
+        systemPanel.SelectSection(section);
+        systemPanel.Show(); systemPanel.Activate();
+    }
+    internal void VerifySystemPanelAccess()
+    {
+        bool visible=IsVisible; if(!visible) Show();
+        SetStudentView(true); OpenSystemPanel(0);
+        if(systemPanel is not null) throw new InvalidOperationException("El panel técnico saltó la vista de alumnos.");
+        SetStudentView(false); SelectMode(ChatMode.System); OpenSystemPanel(0);
+        if(systemPanel is null || !systemPanel.IsVisible) throw new InvalidOperationException("No abrió el centro técnico.");
+        SelectMode(ChatMode.Free);
+        if(systemPanel is not null) throw new InvalidOperationException("El panel técnico no cerró al cambiar de modo.");
+        if(!visible) Hide();
+    }
+
     private void OpenModes(object sender, RoutedEventArgs e)
     {
         if(StudentView) return;
@@ -601,6 +631,12 @@ public partial class MainWindow : Window
         AddUserMessage(message); Message.Clear(); Message.Focus(); ChatStatus.Text = "";
         if (HandleAssistantCommand(message)) { RefreshActivity(); return true; }
         bool limited = current.GetDocumentRule(profile).Limited;
+        if(!limited && profile==ChatMode.System && SystemCommands.Section(message) is int section)
+        {
+            OpenSystemPanel(section);
+            ShowReply(profile,"Abrí el Centro del sistema dentro de BAEL. Usa Revisar hardware para leer los componentes, o analiza los archivos y temporales desde sus pestañas. La limpieza requiere revisar la lista y pulsar Limpiar selección. No se enviaron datos del equipo a la IA.");
+            return true;
+        }
         if(limited && pdfQuiz.TryReply(profile,message,out string quizReply)) { ShowReply(profile,quizReply); return true; }
         if (!limited && activities.TryReply(profile,message,out string activityReply))
         { string formatted=current.GetPersonality(profile).FormatLocal(profile,activityReply); RememberTurn(profile,message,formatted); ShowReply(profile,formatted); return true; }

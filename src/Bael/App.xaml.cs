@@ -18,6 +18,7 @@ public partial class App : Application
                 await window.VerifyStudentViewAsync();
                 await window.VerifySpontaneousAsync();
                 await window.VerifyCommandsAsync();
+                window.VerifySystemPanelAccess();
                 await window.VerifyVoiceInterruptionAsync();
                 await window.VerifyReplyCancellationAsync();
                 window.Close();
@@ -50,6 +51,7 @@ public partial class App : Application
                 PdfQuizSession.Verify();
                 await PdfStudyChecks.RunAsync();
                 await ChatRouterChecks.RunAsync();
+                await SystemChecks.RunAsync();
                 File.WriteAllText(resultPath, "OK");
                 Shutdown(0);
             }
