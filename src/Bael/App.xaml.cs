@@ -11,6 +11,12 @@ public partial class App : Application
         if (e.Args is ["--smoke-test", var resultPath])
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            DispatcherUnhandledException += (_,error) =>
+            {
+                File.WriteAllText(resultPath,error.Exception.ToString());
+                error.Handled=true; Shutdown(1);
+            };
+            File.WriteAllText(resultPath,"Iniciando pruebas de BAEL");
             try
             {
                 var window = new MainWindow(MemoryJournal.Volatile());
@@ -18,7 +24,9 @@ public partial class App : Application
                 await window.VerifyStudentViewAsync();
                 await window.VerifySpontaneousAsync();
                 await window.VerifyCommandsAsync();
+                File.WriteAllText(resultPath,"Abriendo Centro del sistema");
                 window.VerifySystemPanelAccess();
+                File.WriteAllText(resultPath,"Centro del sistema verificado");
                 await window.VerifyVoiceInterruptionAsync();
                 await window.VerifyReplyCancellationAsync();
                 window.Close();
@@ -51,6 +59,7 @@ public partial class App : Application
                 PdfQuizSession.Verify();
                 await PdfStudyChecks.RunAsync();
                 await ChatRouterChecks.RunAsync();
+                File.WriteAllText(resultPath,"Comprobando archivos, limpieza y lector del sistema");
                 await SystemChecks.RunAsync();
                 File.WriteAllText(resultPath, "OK");
                 Shutdown(0);
