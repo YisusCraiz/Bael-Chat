@@ -5,7 +5,7 @@ namespace Bael;
 
 internal static class SystemChecks
 {
-    internal static async Task RunAsync()
+    internal static async Task RunAsync(Action<string>? progress=null)
     {
         var unknown=new HardwareDisk("Disco","SSD","USB",100,"Unknown","",null,null,null,null,null);
         if(unknown.TemperatureText!="No disponible" || unknown.WearText!="No disponible" || !unknown.ErrorText.Contains("N/D")) Fail("Se inventó salud de un disco sin contadores.");
@@ -14,10 +14,13 @@ internal static class SystemChecks
         var restored=JsonSerializer.Deserialize<SystemInventory>(JsonSerializer.Serialize(hardware))!;
         if(restored.Ram.Length!=1 || restored.Ram[0].Configured!=2666 || !restored.Ram[0].Frequency.Contains("3200")) Fail("Se perdieron los datos de RAM.");
         if(SystemCommands.Section("liberar espacio")!=4 || SystemCommands.Section("no abras el panel del sistema") is not null) Fail("Los comandos técnicos ejecutaron una negación.");
+        progress?.Invoke("Sistema: interfaz de prueba");
         var window=new SystemWindow(new BaelSettings());
         try { window.VerifyInterface(); } finally { window.Close(); }
+        progress?.Invoke("Sistema: contadores nativos CPU/RAM");
         var live=new SystemMetrics(); live.Read(); var sample=live.Read();
         if(sample.Cpu is <0 or >100 || sample.Ram is <0 or >100) Fail("Los indicadores devolvieron porcentajes imposibles.");
+        progress?.Invoke("Sistema: archivos temporales de prueba");
         string root=Path.Combine(Path.GetTempPath(),"system-check-"+Guid.NewGuid().ToString("N"));
         string outside=root+"-outside"; Directory.CreateDirectory(root); Directory.CreateDirectory(outside);
         try
@@ -41,6 +44,7 @@ internal static class SystemChecks
             File.AppendAllText(changed.Path,"new bytes");
             using(var hold=new FileStream(locked.Path,FileMode.Open,FileAccess.Read,FileShare.None))
             {
+                progress?.Invoke("Sistema: borrado de un temporal de prueba");
                 var result=SystemFiles.Clean(root,[old,changed,locked,external,notSelected,protectedFile,bael],CancellationToken.None,now);
                 if(result.Deleted!=1 || result.Bytes!=old.Bytes || File.Exists(old.Path) || !File.Exists(locked.Path) || !File.Exists(changed.Path) || !File.Exists(external.Path)
                     || !File.Exists(notSelected.Path) || !File.Exists(protectedFile.Path) || !File.Exists(bael.Path)) Fail("La limpieza salió de la selección válida o no eliminó el temporal verificado.");
@@ -59,7 +63,9 @@ internal static class SystemChecks
             string link=Path.Combine(root,"linked"); if(Directory.Exists(link)) Directory.Delete(link);
             Directory.Delete(root,true); Directory.Delete(outside,true);
         }
+        progress?.Invoke("Sistema: sintaxis de lector PowerShell");
         await SystemInventory.VerifySyntaxAsync();
+        progress?.Invoke("Sistema: todas las comprobaciones terminadas");
     }
     private static void Fail(string text) => throw new InvalidOperationException(text);
 }

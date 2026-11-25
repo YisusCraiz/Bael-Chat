@@ -13,7 +13,7 @@ public partial class App : Application
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             DispatcherUnhandledException += (_,error) =>
             {
-                File.WriteAllText(resultPath,error.Exception.ToString());
+                File.AppendAllText(resultPath,"\nERROR UI: "+error.Exception.ToString());
                 error.Handled=true; Shutdown(1);
             };
             File.WriteAllText(resultPath,"Iniciando pruebas de BAEL");
@@ -24,9 +24,9 @@ public partial class App : Application
                 await window.VerifyStudentViewAsync();
                 await window.VerifySpontaneousAsync();
                 await window.VerifyCommandsAsync();
-                File.WriteAllText(resultPath,"Abriendo Centro del sistema");
+                File.AppendAllText(resultPath,"\nAbriendo Centro del sistema");
                 window.VerifySystemPanelAccess();
-                File.WriteAllText(resultPath,"Centro del sistema verificado");
+                File.AppendAllText(resultPath,"\nCentro del sistema verificado");
                 await window.VerifyVoiceInterruptionAsync();
                 await window.VerifyReplyCancellationAsync();
                 window.Close();
@@ -59,8 +59,8 @@ public partial class App : Application
                 PdfQuizSession.Verify();
                 await PdfStudyChecks.RunAsync();
                 await ChatRouterChecks.RunAsync();
-                File.WriteAllText(resultPath,"Comprobando archivos, limpieza y lector del sistema");
-                await SystemChecks.RunAsync();
+                File.AppendAllText(resultPath,"\nComprobando archivos, limpieza y lector del sistema");
+                await SystemChecks.RunAsync(stage=>File.AppendAllText(resultPath,"\n"+stage));
                 File.WriteAllText(resultPath, "OK");
                 Shutdown(0);
             }
