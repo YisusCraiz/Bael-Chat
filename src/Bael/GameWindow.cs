@@ -167,6 +167,7 @@ public sealed class GameWindow : Window
     }
     private void Announce(string text)
     {
+        status.Text="Ronda terminada · puedes empezar otra o elegir el otro juego.";
         string[] taunts = ["¿Te atreves con otra ronda de fichas imaginarias?", "¡Mi cara de victoria venía incluida con el traje!", "Tienes valor para retar al unicornio. Eso ya merece aplausos."];
         result.Text = text + (personality.Humor>0 ? "\n"+taunts[Random.Shared.Next(taunts.Length)] : "");
         Comment?.Invoke(personality.FormatLocal(ChatMode.Gamer,result.Text));
@@ -181,7 +182,7 @@ public sealed class GameWindow : Window
         var cups=((Canvas)table.Children[0]).Children.OfType<Button>().ToArray();
         if(busy || cups.Length!=3 || cups.Any(c=>!c.IsEnabled)) throw new InvalidOperationException("La mezcla no habilitó los tres vasos.");
         cups[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        if(session.Active || session.Rounds!=rounds+1 || session.Balance!=previous-session.Stake || cups.Any(c=>c.IsEnabled)) throw new InvalidOperationException("Los vasos no cerraron una sola ronda.");
+        if(session.Active || session.Rounds!=rounds+1 || session.Balance!=previous-session.Stake || cups.Any(c=>c.IsEnabled) || !status.Text.Contains("Ronda terminada")) throw new InvalidOperationException("Los vasos no cerraron una sola ronda.");
         cups[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         if(session.Rounds!=rounds+1) throw new InvalidOperationException("Una segunda pulsación duplicó el resultado de vasos.");
     }
