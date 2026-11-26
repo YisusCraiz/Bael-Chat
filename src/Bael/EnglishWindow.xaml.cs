@@ -22,6 +22,7 @@ public partial class EnglishWindow : Window
     private CancellationTokenSource? operation;
     private string reviewedText="";
     private bool hasReviewed;
+    private readonly Stack<(string Before,string After)> correctionUndo=new();
     internal EnglishWindow(BaelSettings settings,EnglishStore? store=null)
     {
         this.settings=settings; this.store=store??new EnglishStore();
@@ -58,7 +59,7 @@ public partial class EnglishWindow : Window
         GoalText.Text=lesson.Level+" · "+lesson.Title+"\n"+lesson.Goal; GrammarTip.Text=lesson.Tip;
         WritingTask.Text=lesson.Writing; WritingTaskSpanish.Text=EnglishCourse.WritingSpanish(lesson.Id);
         WritingExample.Text=lesson.Steps[0].Hint;
-        WritingEditor.Text=draft.Writing; WritingIssues.ItemsSource=null; WritingFeedback.Text=""; hasReviewed=false; reviewedText="";
+        WritingEditor.Text=draft.Writing; WritingIssues.ItemsSource=null; WritingFeedback.Text=""; hasReviewed=false; reviewedText=""; correctionUndo.Clear();
         LevelHelp.Text=EnglishCourse.LevelDescription(lesson.Level);
         ReadingPassage.Text=lesson.Reading; ReadingInput.Text=draft.Reading; voiceTranscript=false;
         ReadingWords.ItemsSource=null; ReadingScore.Text=""; ReadingFeedback.Text="";
@@ -121,7 +122,7 @@ public partial class EnglishWindow : Window
     private void RefreshWritingState()
     {
         WritingCounter.Text=$"{EnglishCourse.WordCount(WritingEditor.Text)} palabras · tu borrador se guarda al pausar";
-        UndoCorrection.IsEnabled=WritingEditor.CanUndo;
+        UndoCorrection.IsEnabled=correctionUndo.TryPeek(out var change) && WritingEditor.Text==change.After;
         int count=WritingIssues.Items.Count;
         CorrectionCount.Text=count==0?"":$"{count} {(count==1?"sugerencia para revisar":"sugerencias para revisar")}";
         WritingEmpty.Visibility=count==0?Visibility.Visible:Visibility.Collapsed;
@@ -130,8 +131,8 @@ public partial class EnglishWindow : Window
     }
     private void UndoWriting(object sender,RoutedEventArgs e)
     {
-        if(!WritingEditor.CanUndo) return;
-        WritingEditor.Undo(); SaveDraft(); AnalyzeWriting(false);
+        if(!correctionUndo.TryPeek(out var change) || WritingEditor.Text!=change.After) return;
+        correctionUndo.Pop(); WritingEditor.Text=change.Before; SaveDraft(); AnalyzeWriting(false);
         WritingFeedback.Text="Corrección deshecha. Puedes seguir escribiendo o revisar de nuevo.";
     }
 
@@ -220,6 +221,8 @@ public partial class EnglishWindow : Window
         WritingEditor.BeginChange();
         try { WritingEditor.Select(issue.Start,issue.Length); WritingEditor.SelectedText=issue.Choice; }
         finally { WritingEditor.EndChange(); }
+        if(correctionUndo.TryPeek(out var previousChange) && previousChange.After!=text) correctionUndo.Clear();
+        correctionUndo.Push((text,WritingEditor.Text));
         SaveDraft(); AnalyzeWriting(false);
         var retained=new List<EnglishIssue>();
         foreach(var previous in remaining)
