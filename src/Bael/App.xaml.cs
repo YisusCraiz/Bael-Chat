@@ -46,6 +46,7 @@ public partial class App : Application
                 window.Close();
                 var companion = new DesktopWindow(testMode: true);
                 companion.VerifyCompanion();
+                await companion.VerifyBubbleVisibilityAsync();
                 companion.Close();
                 await ElevenLabsVoice.VerifyAsync();
                 MemoryJournal.Verify();

@@ -207,12 +207,6 @@ public partial class DesktopWindow : Window
         ShowBubble(ChatMode.Student, new string('a', 400));
         if (bubbleReply.Length > 180 || BubbleText.Text.Length == 0)
             throw new InvalidOperationException("La burbuja no mostró el fragmento de respuesta.");
-        chat.Show();
-        if(AnswerBubble.IsOpen || bubbleTimer.IsEnabled) throw new InvalidOperationException("Abrir el chat no ocultó la burbuja.");
-        ShowBubble(ChatMode.Student,"No debe duplicarse");WriteBubble(null,EventArgs.Empty);
-        if(AnswerBubble.IsOpen || bubbleTimer.IsEnabled) throw new InvalidOperationException("La respuesta duplicó el chat en una burbuja.");
-        chat.Hide();ShowBubble(ChatMode.Student,"La burbuja vuelve a estar disponible");
-        if(!AnswerBubble.IsOpen) throw new InvalidOperationException("La burbuja no volvió al ocultar el chat.");
         HideAnswerBubble();
         if (WheelCanvas.Children.Count != Enum.GetValues<ChatMode>().Length + 2)
             throw new InvalidOperationException("Faltan burbujas de la rueda.");
@@ -429,6 +423,23 @@ public partial class DesktopWindow : Window
         }
     }
 
+    internal async Task VerifyBubbleVisibilityAsync()
+    {
+        Show();
+        await Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
+        ShowBubble(ChatMode.Student,"Primera respuesta");
+        if(!AnswerBubble.IsOpen) throw new InvalidOperationException("La burbuja no abrió sobre el personaje visible.");
+        chat.Show();
+        await Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
+        if(AnswerBubble.IsOpen || bubbleTimer.IsEnabled) throw new InvalidOperationException("Abrir el chat no ocultó la burbuja.");
+        ShowBubble(ChatMode.Student,"No debe duplicarse");WriteBubble(null,EventArgs.Empty);
+        if(AnswerBubble.IsOpen || bubbleTimer.IsEnabled) throw new InvalidOperationException("La respuesta duplicó el chat en una burbuja.");
+        chat.Hide();
+        await Dispatcher.InvokeAsync(()=>{},DispatcherPriority.ApplicationIdle);
+        ShowBubble(ChatMode.Student,"La burbuja vuelve a estar disponible");
+        if(!AnswerBubble.IsOpen) throw new InvalidOperationException($"La burbuja no volvió al ocultar el chat (visible={chat.IsVisible}; cerrado={closing}; cargado={IsLoaded}).");
+        HideAnswerBubble();
+    }
     private bool FullChatVisible => chat.IsVisible && chat.WindowState!=WindowState.Minimized;
     private void HideAnswerBubble()
     {
