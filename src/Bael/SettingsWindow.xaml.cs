@@ -422,7 +422,7 @@ public partial class SettingsWindow : Window
         profiles[editingIndex] = new AiProfile
         {
             Provider = Provider.SelectedValue as string ?? "Gemini",
-            Model = ProfileModel.Text.Trim(),
+            Model = AiProviders.NormalizeModel(Provider.SelectedValue as string??"Gemini",ProfileModel.Text),
             Key = ProfileKey.Password.Trim(),
             Enabled = ProfileEnabled.IsChecked == true
         };
@@ -467,9 +467,31 @@ public partial class SettingsWindow : Window
     private void UpdateProviderHelp()
     {
         if (Provider.SelectedValue is string name)
+        {
+            string current=ProfileModel.Text;
+            ProfileModel.ItemsSource=name=="Gemini"?AiProviders.GeminiModels:new[]{AiProviders.Get(name).Model};
+            ProfileModel.Text=current;
             ProviderHelp.Text = AiProviders.Get(name).Description;
+        }
     }
 
+    private async void TestChatConnection(object sender,RoutedEventArgs e)
+    {
+        StoreProfile();
+        if(editingIndex<0 || editingIndex>=profiles.Count) return;
+        var profile=profiles[editingIndex] with { Enabled=true };
+        if(string.IsNullOrWhiteSpace(profile.Model) || string.IsNullOrWhiteSpace(AiProviders.KeyFor(profile)))
+        { ChatTestStatus.Text="Elige un modelo y añade su clave antes de probar.";return; }
+        TestChatButton.IsEnabled=false;ChatTestStatus.Text="Probando "+profile.Label+" · hasta 60 segundos…";
+        try
+        {
+            var testSettings=new BaelSettings { OnlineChat=true,AutoFallback=false,UseConversationContext=false,UsePinnedMemories=false,Profiles=[profile] };
+            var result=await new ChatRouter().ReplyAsync(testSettings,ChatMode.Free,"Responde únicamente: OK",[],voiceTestLifetime.Token);
+            if(!documentsClosed) ChatTestStatus.Text=result.Text is null?result.Status:"Conexión correcta · "+result.Status;
+        }
+        catch(OperationCanceledException) { if(!documentsClosed) ChatTestStatus.Text="Prueba cancelada."; }
+        finally { if(!documentsClosed) TestChatButton.IsEnabled=true; }
+    }
     private void AddProfile(object sender, RoutedEventArgs e)
     {
         StoreProfile();

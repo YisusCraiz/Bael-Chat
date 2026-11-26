@@ -49,6 +49,24 @@ internal static class ChatRouterChecks
                 throw new InvalidOperationException("Una API perdió el carácter o la función del tutor.");
         }
 
+        foreach(string model in AiProviders.GeminiModels)
+        {
+            using var request=ChatRouter.BuildRequest(new AiProfile { Provider="Gemini",Model="models/"+model,Key="fake" },ChatMode.Free,"Hola",[new("model","huérfano"),new("user","uno"),new("user","dos"),new("model","respuesta"),new("user","")]);
+            if(!request.RequestUri!.AbsolutePath.EndsWith("/"+model+":generateContent")) throw new InvalidOperationException("Se duplicó el prefijo models en Gemini.");
+            using var payload=JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            var contents=payload.RootElement.GetProperty("contents");
+            if(contents.GetArrayLength()!=3 || contents[0].GetProperty("role").GetString()!="user" || contents[0].GetProperty("parts")[0].GetProperty("text").GetString()!="uno\ndos" || contents[2].GetProperty("role").GetString()!="user")
+                throw new InvalidOperationException("Gemini perdió la secuencia de turnos de texto.");
+            bool config=payload.RootElement.TryGetProperty("generationConfig",out var generation);
+            if(model=="gemini-3.5-flash" && (!config || generation.GetProperty("thinkingConfig").GetProperty("thinkingLevel").GetString()!="LOW")) throw new InvalidOperationException("Gemini 3.5 no utiliza razonamiento bajo.");
+            if(model=="gemini-2.5-flash" && config) throw new InvalidOperationException("Gemini 2.5 recibió una configuración incompatible.");
+        }
+        if(AiProviders.NormalizeModel("Gemini"," models/Gémini-2.5-flash ")!="gemini-2.5-flash") throw new InvalidOperationException("No se normalizó el ID de Gemini.");
+        using(var errorsClient=new HttpClient(new ErrorHandler()))
+        {
+            var failure=await new ChatRouter(errorsClient).ReplyAsync(new BaelSettings { OnlineChat=true,AutoFallback=false,Profiles=[new(){Provider="Gemini",Model="gemini-2.5-flash",Key="secret-test-key"}] },ChatMode.Free,"hola",[],CancellationToken.None);
+            if(failure.Text is not null || !failure.Status.Contains("400") || !failure.Status.Contains("Invalid field") || failure.Status.Contains("secret-test-key")) throw new InvalidOperationException("Se perdió el detalle del error o se filtró la clave.");
+        }
         var handler = new FailoverHandler();
         using var client = new HttpClient(handler);
         var router = new ChatRouter(client);
@@ -101,6 +119,11 @@ internal static class ChatRouterChecks
             throw new InvalidOperationException("Una respuesta vacía se trató como válida.");
     }
 
+    private sealed class ErrorHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)=>Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest)
+        { Content=new StringContent("{\"error\":{\"message\":\"Invalid field; key secret-test-key\"}}",Encoding.UTF8,"application/json") });
+    }
     private sealed class FailoverHandler : HttpMessageHandler
     {
         public int GeminiCalls { get; private set; }

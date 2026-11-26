@@ -92,6 +92,8 @@ public partial class DesktopWindow : Window
         movementTimer.Tick += MoveFreely;
         bubbleTimer.Tick += WriteBubble;
         chat.ReplyReady += ShowBubble;
+        chat.IsVisibleChanged+=(_,_)=> { if(FullChatVisible) HideAnswerBubble(); };
+        chat.StateChanged+=(_,_)=> { if(FullChatVisible) HideAnswerBubble(); };
         chat.ActivityChanged += stage =>
         {
             conversationPoseStarted = Environment.TickCount64;
@@ -205,8 +207,13 @@ public partial class DesktopWindow : Window
         ShowBubble(ChatMode.Student, new string('a', 400));
         if (bubbleReply.Length > 180 || BubbleText.Text.Length == 0)
             throw new InvalidOperationException("La burbuja no mostró el fragmento de respuesta.");
-        AnswerBubble.IsOpen = false;
-        bubbleTimer.Stop();
+        chat.Show();
+        if(AnswerBubble.IsOpen || bubbleTimer.IsEnabled) throw new InvalidOperationException("Abrir el chat no ocultó la burbuja.");
+        ShowBubble(ChatMode.Student,"No debe duplicarse");WriteBubble(null,EventArgs.Empty);
+        if(AnswerBubble.IsOpen || bubbleTimer.IsEnabled) throw new InvalidOperationException("La respuesta duplicó el chat en una burbuja.");
+        chat.Hide();ShowBubble(ChatMode.Student,"La burbuja vuelve a estar disponible");
+        if(!AnswerBubble.IsOpen) throw new InvalidOperationException("La burbuja no volvió al ocultar el chat.");
+        HideAnswerBubble();
         if (WheelCanvas.Children.Count != Enum.GetValues<ChatMode>().Length + 2)
             throw new InvalidOperationException("Faltan burbujas de la rueda.");
 
@@ -422,9 +429,14 @@ public partial class DesktopWindow : Window
         }
     }
 
+    private bool FullChatVisible => chat.IsVisible && chat.WindowState!=WindowState.Minimized;
+    private void HideAnswerBubble()
+    {
+        AnswerBubble.IsOpen=false; bubbleTimer.Stop();
+    }
     private void ShowBubble(ChatMode mode, string reply)
     {
-        if (closing) return;
+        if (closing || FullChatVisible) { HideAnswerBubble(); return; }
         chatterClock.Reset(Environment.TickCount64, settings.SpontaneousSeconds);
         bubbleReply = reply.Length > 180 ? reply[..177] + "…" : reply;
         bubbleCharacters = Math.Min(3, bubbleReply.Length);
@@ -438,7 +450,7 @@ public partial class DesktopWindow : Window
 
     private void WriteBubble(object? sender, EventArgs e)
     {
-        if (!AnswerBubble.IsOpen || Environment.TickCount64 > bubbleExpires)
+        if (FullChatVisible || !AnswerBubble.IsOpen || Environment.TickCount64 > bubbleExpires)
         {
             AnswerBubble.IsOpen = false;
             bubbleTimer.Stop();

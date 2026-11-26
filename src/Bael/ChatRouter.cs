@@ -17,7 +17,7 @@ internal sealed class ChatRouter
 
     public ChatRouter(HttpClient? client = null)
     {
-        this.client = client ?? new HttpClient { Timeout = TimeSpan.FromSeconds(25) };
+        this.client = client ?? new HttpClient { Timeout = TimeSpan.FromSeconds(75) };
     }
 
     public Task<ChatResult> ReplyAsync(BaelSettings settings, ChatMode mode, string message,
@@ -66,8 +66,10 @@ internal sealed class ChatRouter
             try
             {
                 progress?.Report($"Consultando {profile.Label}…");
+                using var attempt=CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                attempt.CancelAfter(TimeSpan.FromSeconds(profile.Provider=="Gemini"?60:25));
                 using HttpRequestMessage request = BuildRequest(profile, mode, message, history, settings.GetPersonality(mode), memoryContext, instructionOverride);
-                using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+                using HttpResponseMessage response = await client.SendAsync(request, attempt.Token);
                 if (!response.IsSuccessStatusCode)
                 {
                     int code = (int)response.StatusCode;
@@ -78,18 +80,19 @@ internal sealed class ChatRouter
                         400 or 404 => "revisa modelo o solicitud",
                         _ => "servicio no disponible"
                     };
-                    TimeSpan delay = code is 429 or 402 or 401 or 403 or 400 or 404
+                    string detail=await ErrorDetail(response,profile,attempt.Token);
+                    TimeSpan delay = code is 429 or 402 or 401 or 403
                         ? TimeSpan.FromMinutes(15) : TimeSpan.FromSeconds(30);
                     if (response.Headers.RetryAfter?.Delta is TimeSpan retry)
                         delay = retry > delay ? retry : delay;
                     else if (response.Headers.RetryAfter?.Date is DateTimeOffset date && date > DateTimeOffset.UtcNow + delay)
                         delay = date - DateTimeOffset.UtcNow;
                     unavailableUntil[identity] = DateTimeOffset.UtcNow + delay;
-                    failures.Add($"{profile.Provider}: {reason} ({code})");
+                    failures.Add($"{profile.Label}: {reason} ({code})"+(detail.Length>0?$" · {detail}":""));
                     continue;
                 }
 
-                using var json = JsonDocument.Parse(await response.Content.ReadAsByteArrayAsync(cancellationToken));
+                using var json = JsonDocument.Parse(await response.Content.ReadAsByteArrayAsync(attempt.Token));
                 string? text = ReadText(profile.Provider, json.RootElement);
                 if (string.IsNullOrWhiteSpace(text))
                 {
@@ -105,7 +108,7 @@ internal sealed class ChatRouter
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 unavailableUntil[identity] = DateTimeOffset.UtcNow.AddSeconds(30);
-                failures.Add($"{profile.Provider}: tiempo agotado");
+                failures.Add($"{profile.Label}: tiempo agotado ({(profile.Provider=="Gemini"?60:25)} s). Puedes usar Probar conexión en Ajustes");
             }
             catch (Exception error) when (error is HttpRequestException or JsonException or FormatException or InvalidOperationException)
             {
@@ -120,6 +123,20 @@ internal sealed class ChatRouter
             : $"{string.Join(" · ", failures)}. Se mostró una guía local.");
     }
 
+    internal static async Task<string> ErrorDetail(HttpResponseMessage response,AiProfile profile,CancellationToken token)
+    {
+        try
+        {
+            using var json=JsonDocument.Parse(await response.Content.ReadAsByteArrayAsync(token));
+            if(!json.RootElement.TryGetProperty("error",out var error) || !error.TryGetProperty("message",out var message) || message.ValueKind!=JsonValueKind.String) return "";
+            string text=message.GetString()??"";
+            string secret=AiProviders.KeyFor(profile);if(secret.Length>0) text=text.Replace(secret,"[clave oculta]",StringComparison.Ordinal);
+            text=System.Text.RegularExpressions.Regex.Replace(text,@"AIza[A-Za-z0-9_-]+|sk-[A-Za-z0-9_-]+","[clave oculta]");
+            text=System.Text.RegularExpressions.Regex.Replace(text,@"\s+"," ").Trim();
+            return text.Length>300?text[..297]+"…":text;
+        }
+        catch(JsonException) { return ""; }
+    }
     internal static HttpRequestMessage BuildRequest(AiProfile profile, ChatMode mode, string message,
         IReadOnlyList<ChatTurn> history, ModePersonality? personality = null, string? memoryContext = null, string? instructionOverride = null)
     {
@@ -130,14 +147,27 @@ internal sealed class ChatRouter
         if (profile.Provider == "Gemini")
         {
             var request = new HttpRequestMessage(HttpMethod.Post,
-                $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(profile.Model)}:generateContent");
+                $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(AiProviders.NormalizeModel(profile.Provider,profile.Model))}:generateContent");
             request.Headers.Add("x-goog-api-key", AiProviders.KeyFor(profile));
-            request.Content = JsonContent.Create(new
+            // Merge adjacent text turns and discard invalid/empty entries before sending.
+            // The final turn is always the current user message.
+            var turns=new List<ChatTurn>();
+            foreach(var turn in history.TakeLast(12).Append(new ChatTurn("user",message)))
             {
-                system_instruction = new { parts = new[] { new { text = instruction } } },
-                contents = history.Select(turn => new { role = turn.Role, parts = new[] { new { text = turn.Text } } })
-                    .Append(new { role = "user", parts = new[] { new { text = message } } }).ToArray()
-            });
+                if(turn.Role is not ("user" or "model") || string.IsNullOrWhiteSpace(turn.Text)) continue;
+                if(turns.Count==0 && turn.Role=="model") continue;
+                if(turns.Count>0 && turns[^1].Role==turn.Role) turns[^1]=new(turn.Role,turns[^1].Text+"\n"+turn.Text);
+                else turns.Add(turn);
+            }
+            var payload=new Dictionary<string,object>
+            {
+                ["system_instruction"]=new { parts=new[] { new { text=instruction } } },
+                ["contents"]=turns.Select(turn=>new { role=turn.Role,parts=new[] { new { text=turn.Text } } }).ToArray()
+            };
+            // 3.5 supports thinkingLevel. Do not send a legacy numeric budget to 3.x.
+            if(AiProviders.NormalizeModel(profile.Provider,profile.Model)=="gemini-3.5-flash")
+                payload["generationConfig"]=new { thinkingConfig=new { thinkingLevel="LOW" } };
+            request.Content=JsonContent.Create(payload);
             return request;
         }
 

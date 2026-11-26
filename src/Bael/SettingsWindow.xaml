@@ -204,7 +204,9 @@
                                     <Button Content="Ver plan y límites ↗" Click="OpenProviderDocs" />
                                 </WrapPanel>
                                 <Label Target="{Binding ElementName=ProfileModel}" Content="ID del modelo" Padding="0,10,0,4" />
-                                <TextBox x:Name="ProfileModel" />
+                                <ComboBox x:Name="ProfileModel" IsEditable="True" ToolTip="Selecciona un modelo o escribe otro ID válido para tu cuenta" />
+                                <Button x:Name="TestChatButton" Content="Probar conexión del modelo" Click="TestChatConnection" HorizontalAlignment="Left" Margin="0,10,0,3"/>
+                                <TextBlock x:Name="ChatTestStatus" Text="La prueba envía solo un saludo breve y puede consumir cuota. No envía tu historial ni PDF." TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
                                 <Label Target="{Binding ElementName=ProfileKey}" Content="Clave API" Padding="0,10,0,4" />
                                 <PasswordBox x:Name="ProfileKey" />
                                 <TextBlock Text="Si dejas la clave vacía, BAEL usa la variable de entorno de ese proveedor cuando existe."
