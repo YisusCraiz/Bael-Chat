@@ -3,7 +3,7 @@ namespace Bael;
 internal sealed record AiProfile
 {
     public string Provider { get; init; } = "Gemini";
-    public string Model { get; init; } = "gemini-2.5-flash";
+    public string Model { get; init; } = "gemini-3.8-flash";
     public string Key { get; init; } = "";
     public bool Enabled { get; init; } = true;
     public string Label => $"{Provider} · {Model}{(Enabled ? "" : " · desactivado")}";
@@ -15,8 +15,8 @@ internal static class AiProviders
 {
     public static readonly ProviderInfo[] All =
     [
-        new("Gemini", "gemini-2.5-flash",
-            "Elige Gemini 2.5 Flash o Gemini 3.5 Flash. La disponibilidad y la cuota dependen de tu cuenta; Probar conexión muestra el detalle del servicio. Tiene acceso gratuito limitado según el modelo. En el nivel gratuito Google puede usar el contenido para mejorar sus productos. Comprueba el modelo y la cuota de tu cuenta.",
+        new("Gemini", "gemini-3.8-flash",
+            "Gemini 3.8 Flash es la opción principal. Gemini 2.5 Flash ya no está disponible para cuentas nuevas. Puedes elegir 3.5 Flash si tu cuenta tiene acceso o escribir otro ID. La disponibilidad, precio y cuota dependen de tu cuenta; compruébalos en Google AI Studio. Probar conexión muestra el detalle del servicio.",
             "https://aistudio.google.com/apikey", "https://ai.google.dev/gemini-api/docs/pricing"),
         new("Groq", "openai/gpt-oss-120b",
             "Conversación y razonamiento con GPT-OSS 120B. Groq ofrece un plan gratuito con límites de solicitudes y tokens. La cuota exacta aparece en tu cuenta.",
@@ -26,7 +26,7 @@ internal static class AiProviders
             "https://openrouter.ai/settings/keys", "https://openrouter.ai/docs/guides/routing/routers/free-router")
     ];
 
-    public static readonly string[] GeminiModels=["gemini-2.5-flash","gemini-3.5-flash"];
+    public static readonly string[] GeminiModels=["gemini-3.8-flash","gemini-3.5-flash"];
     public static string NormalizeModel(string provider,string model)
     {
         model=model.Trim();

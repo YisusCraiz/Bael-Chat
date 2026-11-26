@@ -51,7 +51,7 @@ internal sealed record BaelSettings
             ? personality : ModePersonality.Default(mode);
 
     public string GeminiKey { get; init; } = "";
-    public string GeminiModel { get; init; } = "gemini-2.5-flash";
+    public string GeminiModel { get; init; } = "gemini-3.8-flash";
     public string SpeechModel { get; init; } = "scribe_v2";
     public bool SpeakVoiceReplies { get; init; } = true;
     public string VoiceModel { get; init; } = "eleven_multilingual_v2";

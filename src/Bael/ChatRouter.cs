@@ -81,6 +81,7 @@ internal sealed class ChatRouter
                         _ => "servicio no disponible"
                     };
                     string detail=await ErrorDetail(response,profile,attempt.Token);
+                    if(code==404 && profile.Provider=="Gemini") reason="modelo no disponible para esta cuenta; selecciona gemini-3.8-flash en Ajustes → Chat y APIs y prueba la conexión";
                     TimeSpan delay = code is 429 or 402 or 401 or 403
                         ? TimeSpan.FromMinutes(15) : TimeSpan.FromSeconds(30);
                     if (response.Headers.RetryAfter?.Delta is TimeSpan retry)
@@ -164,8 +165,8 @@ internal sealed class ChatRouter
                 ["system_instruction"]=new { parts=new[] { new { text=instruction } } },
                 ["contents"]=turns.Select(turn=>new { role=turn.Role,parts=new[] { new { text=turn.Text } } }).ToArray()
             };
-            // 3.5 supports thinkingLevel. Do not send a legacy numeric budget to 3.x.
-            if(AiProviders.NormalizeModel(profile.Provider,profile.Model)=="gemini-3.5-flash")
+            // Both supported Flash choices accept LOW. Never send MINIMAL or a numeric budget to 3.8.
+            if(AiProviders.NormalizeModel(profile.Provider,profile.Model)is "gemini-3.5-flash" or "gemini-3.8-flash")
                 payload["generationConfig"]=new { thinkingConfig=new { thinkingLevel="LOW" } };
             request.Content=JsonContent.Create(payload);
             return request;
