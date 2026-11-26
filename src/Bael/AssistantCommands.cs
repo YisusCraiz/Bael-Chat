@@ -50,12 +50,12 @@ internal static class AssistantCommands
         string details=mode switch
         {
             ChatMode.Student=>"Te ayudo a organizar el estudio, repasar conceptos y consultar los PDF que asignes. Si está limitado a documentos, busco pasajes con archivo y página; no invento contenido que no esté en el material.",
-            ChatMode.Math=>"Te acompaño con pistas de álgebra y fracciones, reviso tus intentos y tengo un reto guiado de tres pasos. Tú haces los cálculos: no te doy la solución completa.",
+            ChatMode.Math=>"Te acompaño con pistas de álgebra y fracciones, reviso tus intentos y tengo retos guiados de operaciones inversas, fracciones y álgebra. Tú haces los cálculos: no te doy la solución completa.",
             ChatMode.English=>"Abre Aula por niveles para practicar A1, A2, B1 y B2. Tienes escritura con sugerencias locales y revisión opcional con IA, lectura comparada con una transcripción, escucha de textos de 50 palabras con preguntas y escenarios de conversación. Se guardan localmente borradores, intentos y progreso por tema. La comparación de lectura marca palabras distintas, no evalúa fonemas ni acento. Windows puede leer con una voz inglesa instalada; ElevenLabs permite voz y transcripción con tu clave.",
             ChatMode.System=>"Abre Centro del sistema para ver uso de CPU/RAM, espacio, discos, módulos RAM y componentes. Busca archivos por nombre o tamaño y analiza temporales antiguos; Limpiar selección elimina solo los elegidos tras verificarlos. Revisar hardware lee datos locales de Windows; algunos contadores pueden no estar disponibles. No diagnostico el estado eléctrico de la placa ni confirmo compatibilidad de ampliaciones. No modifico BIOS, controladores ni registro.",
             ChatMode.Tarot=>"Hago cartas y tiradas imaginarias para conversar y reflexionar. Puedes probar una carta del día o tres cartas; es entretenimiento, sin predecir el futuro.",
-            ChatMode.Comedy=>"Tengo chistes del campus y puedo improvisar escenas o historias absurdas contigo. El tono y el humor se personalizan en Ajustes.",
-            ChatMode.Free=>"Conversamos de tu día, gustos, anime o ideas; también hay una aventura espacial de decisiones. Puedo iniciar preguntas y curiosidades si activas Compañía. La conversación abierta usa una API; sin conexión hay actividades y repertorio local.",
+            ChatMode.Comedy=>"Tengo chistes del campus y puedo improvisar escenas o historias absurdas contigo en tres turnos, también sin API. El tono y el humor se personalizan en Ajustes.",
+            ChatMode.Free=>"Conversamos de tu día, gustos, anime o ideas; también hay una aventura espacial de decisiones y un taller local para ordenar ideas. Puedo iniciar preguntas y curiosidades si activas Compañía. La conversación abierta usa una API; sin conexión hay actividades y repertorio local.",
             ChatMode.Gamer=>"Puedes abrir Vasos o Póker desde las actividades. Son partidas de espectáculo anunciadas donde BAEL siempre gana, con fichas ficticias, saldo inicial 1.000 y apuestas de 10, 50 o 100. En póker puedes cambiar hasta tres cartas.",
             _=>""
         };
@@ -65,6 +65,7 @@ internal static class AssistantCommands
         controls += "\nPulsa Hablar para interrumpir mi lectura y responder; Detener cancela la interacción actual. En el chat puedes desplegar los tiempos de cada etapa.";
         return $"Estoy en modo {Responses.Name(mode)}.\n{details}\nActividades: {activities}." +
             (settings.GetDocumentRule(mode).Limited ? "\nEste modo está limitado a sus PDF seleccionados. Tienes resumen extractivo, búsqueda por tema y repaso de palabras; la explicación con IA es opcional en Ajustes → Documentos." : "") +
+            (ModeGuide.Supports(mode) && !settings.GetDocumentRule(mode).Limited?"\nExplorar "+Responses.Name(mode)+" abre tarjetas con el propósito, pasos y disponibilidad local o con API de cada actividad. Las dinámicas guiadas se cierran con Salir actividad.":"") +
             "\nPuedes pedirme cambiar de modo por voz o texto, por ejemplo: cambia al modo Gamer. Shift + clic derecho sobre el personaje abre modos y Ajustes."+controls;
     }
     private static string Display(string shortcut)=>string.IsNullOrWhiteSpace(shortcut)?"desactivado":shortcut;

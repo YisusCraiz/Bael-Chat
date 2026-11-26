@@ -34,6 +34,7 @@ public partial class MainWindow : Window
     {
         StudentView=student;
         CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
+        modeGuide?.Close(); modeGuide=null;
         games?.Close(); games=null;
         systemPanel?.Close(); systemPanel=null;
         englishPanel?.Close(); englishPanel=null;
@@ -165,6 +166,7 @@ public partial class MainWindow : Window
     private readonly ModeActivities activities = new();
     private readonly PdfQuizSession pdfQuiz = new();
     private GameWindow? games;
+    private ModeGuideWindow? modeGuide;
     private SystemWindow? systemPanel;
     private EnglishWindow? englishPanel;
     private readonly Dictionary<ChatMode, List<ChatTurn>> histories;
@@ -237,7 +239,7 @@ public partial class MainWindow : Window
         if (mode != selected) { pdfQuiz.Stop(); activities.Stop(mode); replyRequest?.Cancel(); StopVoice(); }
         if(StudentView && selected!=ChatMode.Student)
         { ChatStatus.Text="Vista de alumnos: pulsa Desbloquear BAEL para acceder a los otros modos."; return; }
-        if(selected!=mode) { systemPanel?.Close(); systemPanel=null; englishPanel?.Close(); englishPanel=null; }
+        if(selected!=mode) { modeGuide?.Close(); modeGuide=null; games?.Close(); games=null; systemPanel?.Close(); systemPanel=null; englishPanel?.Close(); englishPanel=null; }
         mode = selected;
         ModeLabel.Text = $"Modo {Responses.Name(mode).ToLowerInvariant()}";
         UpdateActivities();
@@ -257,6 +259,7 @@ public partial class MainWindow : Window
     internal void EditSettings(Window owner,bool documents=false)
     {
         englishPanel?.Close(); englishPanel=null;
+        modeGuide?.Close(); modeGuide=null; games?.Close(); games=null;
         pdfQuiz.Stop();
         CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
         var dialog = new SettingsWindow(settings, settingsUnreadable, OpenMemory) { Owner = owner, Topmost = owner.Topmost };
@@ -309,6 +312,7 @@ public partial class MainWindow : Window
         Closed += (_, _) =>
         {
             CancelSpontaneous();
+            modeGuide?.Close();
             games?.Close();
             systemPanel?.Close();
             englishPanel?.Close();
@@ -357,6 +361,12 @@ public partial class MainWindow : Window
         {
             SelectMode(profile);
             if (ActivityButtons.Children.Count != 4) throw new InvalidOperationException("Faltan actividades en el chat.");
+            if(ModeGuide.Supports(profile))
+            {
+                if(ModeEntry.Visibility!=Visibility.Visible) throw new InvalidOperationException("Falta la entrada guiada del modo.");
+                var guide=new ModeGuideWindow(profile,settings);try { guide.VerifyInterface(settings); } finally { guide.Close(); }
+            }
+            else if(ModeEntry.Visibility!=Visibility.Collapsed) throw new InvalidOperationException("Se alteró un modo ya terminado.");
             const string message = "Mensaje de prueba";
             int previousCount = Conversation.Items.Count;
             AddUserMessage(message);
@@ -395,6 +405,32 @@ public partial class MainWindow : Window
             if (CanStartSpontaneous) throw new InvalidOperationException("Se ignoró el límite PDF al iniciar un comentario.");
         }
         finally { settings = previous; SelectMode(ChatMode.Student); }
+    }
+
+    internal async Task VerifyModeActivitiesAsync()
+    {
+        var previous=settings;
+        try
+        {
+            settings=previous with { OnlineChat=false,DocumentRules=[] };
+            foreach(var (selected,command) in new[] { (ChatMode.Math,"Fracciones guiadas"),(ChatMode.Free,"Taller de ideas"),(ChatMode.Tarot,"Reflexión de metas"),(ChatMode.Comedy,"Historia absurda local") })
+            {
+                SelectMode(selected);Message.Text=command;await SendCurrentMessage();
+                if(!activities.IsRunning(selected) || ActiveModeRow.Visibility!=Visibility.Visible || latestReply is null || !latestReply.Contains("1/3")) throw new InvalidOperationException("La actividad guiada no comenzó desde el chat.");
+                Message.Text=selected==ChatMode.Math?"sí":"Mi idea de prueba";await SendCurrentMessage();
+                if(latestReply is null || !latestReply.Contains("2/3")) throw new InvalidOperationException("La actividad no aceptó el siguiente turno.");
+                ExitModeActivity(this,new RoutedEventArgs());
+                if(activities.IsRunning(selected) || ActiveModeRow.Visibility!=Visibility.Collapsed) throw new InvalidOperationException("No se pudo salir del reto desde el botón.");
+            }
+            SelectMode(ChatMode.Math);Message.Text="Fracciones guiadas";await SendCurrentMessage();SelectMode(ChatMode.Free);
+            if(activities.IsRunning(ChatMode.Math)) throw new InvalidOperationException("El cambio de modo dejó un reto abierto.");
+            int count=Conversation.Items.Count;await RunModeAction(new("Mi día","Hoy me pasó: ",true));
+            if(Conversation.Items.Count!=count || Message.Text!="Hoy me pasó: ") throw new InvalidOperationException("Un borrador se envió sin completarlo.");
+            Message.Clear();
+            settings=settings with { DocumentRules=new() { [ChatMode.Free]=new() { Limited=true } } };UpdateActivities();
+            if(ModeEntry.Visibility!=Visibility.Collapsed) throw new InvalidOperationException("La guía saltó el límite de documentos.");
+        }
+        finally { settings=previous;SelectMode(ChatMode.Student); }
     }
 
     internal async Task VerifyCommandsAsync()
@@ -489,10 +525,15 @@ public partial class MainWindow : Window
         ModeDescription.Text = StudentView ? "Aula BAEL · Sube tus PDF, pregunta por un concepto y recibe un resumen con su página de origen." : ModeActivities.Description(mode);
         foreach (var activity in QuerySettings.GetDocumentRule(mode).Limited ? PdfStudy.Activities(mode) : ModeActivities.Catalog(mode))
         {
-            var button = new Button { Content = activity.Label, ToolTip = activity.Prompt,
+            var button = new Button { Content = activity.Label, ToolTip = activity.Prompt.StartsWith("@")?"Abrir "+activity.Label:activity.Draft?"Preparar un mensaje para que lo completes antes de enviar":activity.Prompt,
                 Padding = new Thickness(10, 6, 10, 6), FontSize = 12 };
-            button.Click += async (_, _) =>
-            {
+            button.Click += async (_, _) => await RunModeAction(activity);
+            ActivityButtons.Children.Add(button);
+        }
+        UpdateModeEntry();
+    }
+    private async Task RunModeAction(ModeActivity activity,bool draft=false)
+    {
                 if (!SendButton.IsEnabled) return;
                 if(activity.Prompt.StartsWith("@english:"))
                 { OpenEnglishPanel(int.Parse(activity.Prompt[9..])); return; }
@@ -503,7 +544,7 @@ public partial class MainWindow : Window
                 {
                     if (games is null)
                     {
-                        games = new GameWindow(settings.GetPersonality(ChatMode.Gamer));
+                        games = new GameWindow(settings.GetPersonality(ChatMode.Gamer),settings.UiTheme);
                         games.Owner = this;
                         games.Topmost = Topmost;
                         games.Closed += (_, _) => games = null;
@@ -514,11 +555,50 @@ public partial class MainWindow : Window
                     games.Activate();
                     return;
                 }
+                if(draft || activity.Draft) { activities.Stop(mode); Message.Text=activity.Prompt; Message.Focus(); Message.CaretIndex=Message.Text.Length; UpdateModeEntry(); return; }
                 Message.Text = activity.Prompt;
                 await SendCurrentMessage();
+    }
+    private void UpdateModeEntry()
+    {
+        bool visible=!StudentView && ModeGuide.Supports(mode) && !QuerySettings.GetDocumentRule(mode).Limited;
+        ModeEntry.Visibility=visible?Visibility.Visible:Visibility.Collapsed;
+        ConversationEmpty.Text=visible?mode switch
+        {
+            ChatMode.Math=>"Comparte tu ejercicio y tu intento, o empieza un reto guiado con pistas.",
+            ChatMode.Free=>"Cuéntame algo de tu día o elige una aventura para romper el hielo.",
+            ChatMode.Tarot=>"Saca una carta imaginaria o empieza una reflexión. Tú decides qué significado darle.",
+            ChatMode.Comedy=>"Pide un chiste o participa en una escena: tu frase cambia la historia.",
+            _=>"Abre Vasos o Póker. Son juegos de exhibición con fichas imaginarias."
+        }:"Escribe tu primera pregunta para empezar.";
+        if(!visible) return;
+        var info=ModeGuide.For(mode);ModeEntryTitle.Text=info.Title;
+        ModeEntryHint.Text="Actividades, pasos y disponibilidad.";
+        ExploreModeButton.Content="Explorar "+Responses.Name(mode)+" →";
+        bool active=activities.IsRunning(mode);
+        ActiveModeRow.Visibility=active?Visibility.Visible:Visibility.Collapsed;
+        ModeActivityState.Text=active?"Actividad en curso · responde en el chat o pulsa Salir actividad.":"Puedes escribir o usar Hablar. La conversación se conserva por modo según tus ajustes.";
+    }
+    private void ExploreCurrentMode(object sender,RoutedEventArgs e)
+    {
+        if(!ModeGuide.Supports(mode) || StudentView || QuerySettings.GetDocumentRule(mode).Limited) return;
+        if(modeGuide is null)
+        {
+            ChatMode selected=mode;
+            modeGuide=new ModeGuideWindow(selected,settings) { Owner=this,Topmost=Topmost };
+            modeGuide.Closed+=(_,_)=>modeGuide=null;
+            modeGuide.Start+=async offer=>
+            {
+                if(mode!=selected || StudentView || QuerySettings.GetDocumentRule(mode).Limited || !SendButton.IsEnabled) return;
+                modeGuide?.Close();
+                await RunModeAction(new(offer.Title,offer.Action),offer.Draft);
             };
-            ActivityButtons.Children.Add(button);
         }
+        modeGuide.Show();modeGuide.Activate();
+    }
+    private void ExitModeActivity(object sender,RoutedEventArgs e)
+    {
+        activities.Stop(mode);UpdateModeEntry();ChatStatus.Text="Actividad cerrada. Puedes conversar o elegir otra.";
     }
 
     private void HideChat(object sender, RoutedEventArgs e) => Hide();
@@ -679,7 +759,7 @@ public partial class MainWindow : Window
         }
         if(limited && pdfQuiz.TryReply(profile,message,out string quizReply)) { ShowReply(profile,quizReply); return true; }
         if (!limited && activities.TryReply(profile,message,out string activityReply))
-        { string formatted=current.GetPersonality(profile).FormatLocal(profile,activityReply); RememberTurn(profile,message,formatted); ShowReply(profile,formatted); return true; }
+        { string formatted=current.GetPersonality(profile).FormatLocal(profile,activityReply); RememberTurn(profile,message,formatted); ShowReply(profile,formatted); UpdateModeEntry(); return true; }
         string reply = current.GetPersonality(profile).FormatLocal(profile,Responses.For(profile,message));
         if (!limited && profile == ChatMode.System && (message.Contains("diagn",StringComparison.OrdinalIgnoreCase)
             || message.Contains("examina",StringComparison.OrdinalIgnoreCase) || message.Contains("revisa",StringComparison.OrdinalIgnoreCase)))

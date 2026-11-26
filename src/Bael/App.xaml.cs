@@ -36,6 +36,7 @@ public partial class App : Application
                 await window.VerifyStudentViewAsync();
                 await window.VerifySpontaneousAsync();
                 await window.VerifyCommandsAsync();
+                await window.VerifyModeActivitiesAsync();
                 File.AppendAllText(resultPath,"\nAbriendo Centro del sistema");
                 window.VerifySystemPanelAccess();
                 window.VerifyEnglishPanelAccess();
@@ -62,6 +63,7 @@ public partial class App : Application
                 ModeActivities.Verify();
                 var gameWindow = new GameWindow(ModePersonality.Default(ChatMode.Gamer));
                 gameWindow.VerifyInterface();
+                await gameWindow.VerifyCupsAsync();
                 gameWindow.Close();
                 AssistantCommands.Verify();
                 SettingsTheme.Verify();

@@ -33,11 +33,15 @@
             <Button Content="Subir PDF" Click="OpenDocuments" DockPanel.Dock="Right" ToolTip="Añadir y asignar material al modo actual" />
             <TextBlock x:Name="DocumentStatus" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="12" Foreground="#665391" />
         </DockPanel>
+        <Border x:Name="ModeEntry" Visibility="Collapsed" Background="#F1ECFA" CornerRadius="12" Padding="10" Margin="0,0,0,8"><StackPanel>
+            <DockPanel><Button x:Name="ExploreModeButton" DockPanel.Dock="Right" Click="ExploreCurrentMode" Content="Explorar actividades →" Padding="10,7"/><StackPanel VerticalAlignment="Center"><TextBlock x:Name="ModeEntryTitle" FontSize="14" FontWeight="Bold" Foreground="#302847" TextWrapping="Wrap"/><TextBlock x:Name="ModeEntryHint" Foreground="#665D79" TextWrapping="Wrap" FontSize="11"/></StackPanel></DockPanel>
+            <DockPanel x:Name="ActiveModeRow" Visibility="Collapsed"><Button x:Name="EndModeActivity" Content="Salir actividad" Click="ExitModeActivity" DockPanel.Dock="Right" Padding="10,5"/><TextBlock x:Name="ModeActivityState" Foreground="#665D79" TextWrapping="Wrap" FontSize="11" VerticalAlignment="Center"/></DockPanel>
+        </StackPanel></Border>
         <WrapPanel x:Name="ActivityButtons" />
         </StackPanel>
         <Border Grid.Row="1" Background="Transparent" CornerRadius="18" BorderBrush="#E9E3F2" BorderThickness="1" Padding="8">
             <Grid>
-                <TextBlock Text="Escribe tu primera pregunta para empezar."
+                <TextBlock x:Name="ConversationEmpty" Text="Escribe tu primera pregunta para empezar." TextWrapping="Wrap" MaxWidth="440" Margin="12"
                            HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#8A809B">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
