@@ -482,14 +482,16 @@ public partial class SettingsWindow : Window
         var profile=profiles[editingIndex] with { Enabled=true };
         if(string.IsNullOrWhiteSpace(profile.Model) || string.IsNullOrWhiteSpace(AiProviders.KeyFor(profile)))
         { ChatTestStatus.Text="Elige un modelo y añade su clave antes de probar.";return; }
-        TestChatButton.IsEnabled=false;ChatTestStatus.Text="Probando "+profile.Label+" · hasta 60 segundos…";
+        TestChatButton.IsEnabled=false;ChatTestStatus.Text="Diagnosticando "+profile.Label+" · primero conexión, después respuesta mínima…";
         try
         {
-            var testSettings=new BaelSettings { OnlineChat=true,AutoFallback=false,UseConversationContext=false,UsePinnedMemories=false,Profiles=[profile] };
-            var result=await new ChatRouter().ReplyAsync(testSettings,ChatMode.Free,"Responde únicamente: OK",[],voiceTestLifetime.Token);
+            var progress=new Progress<string>(status=> { if(!documentsClosed) ChatTestStatus.Text=status; });
+            var result=await new ChatRouter().DiagnoseAsync(profile,voiceTestLifetime.Token,progress);
             if(!documentsClosed) ChatTestStatus.Text=result.Text is null?result.Status:"Conexión correcta · "+result.Status;
         }
         catch(OperationCanceledException) { if(!documentsClosed) ChatTestStatus.Text="Prueba cancelada."; }
+        catch(Exception error) when(error is HttpRequestException or IOException or System.Text.Json.JsonException or InvalidOperationException or FormatException)
+        { if(!documentsClosed) ChatTestStatus.Text="No se completó el diagnóstico: conexión interrumpida o respuesta no válida. No se envió tu historial ni tus PDF."; }
         finally { if(!documentsClosed) TestChatButton.IsEnabled=true; }
     }
     private void AddProfile(object sender, RoutedEventArgs e)

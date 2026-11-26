@@ -75,6 +75,7 @@ public partial class App : Application
                 PdfQuizSession.Verify();
                 await PdfStudyChecks.RunAsync();
                 await ChatRouterChecks.RunAsync();
+                await GeminiTransportChecks.RunAsync();
                 File.AppendAllText(resultPath,"\nComprobando archivos, limpieza y lector del sistema");
                 await SystemChecks.RunAsync(stage=>File.AppendAllText(resultPath,"\n"+stage));
                 File.AppendAllText(resultPath,"\nComprobando el aula de inglés");

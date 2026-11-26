@@ -52,14 +52,14 @@ internal static class ChatRouterChecks
         foreach(string model in AiProviders.GeminiModels.Append("gemini-2.5-flash"))
         {
             using var request=ChatRouter.BuildRequest(new AiProfile { Provider="Gemini",Model="models/"+model,Key="fake" },ChatMode.Free,"Hola",[new("model","huérfano"),new("user","uno"),new("user","dos"),new("model","respuesta"),new("user","")]);
-            if(!request.RequestUri!.AbsolutePath.EndsWith("/"+model+":generateContent")) throw new InvalidOperationException("Se duplicó el prefijo models en Gemini.");
+            if(!request.RequestUri!.AbsolutePath.EndsWith("/"+model+":streamGenerateContent")) throw new InvalidOperationException("Se duplicó el prefijo models en Gemini.");
             using var payload=JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
             var contents=payload.RootElement.GetProperty("contents");
             if(contents.GetArrayLength()!=3 || contents[0].GetProperty("role").GetString()!="user" || contents[0].GetProperty("parts")[0].GetProperty("text").GetString()!="uno\ndos" || contents[2].GetProperty("role").GetString()!="user")
                 throw new InvalidOperationException("Gemini perdió la secuencia de turnos de texto.");
             bool config=payload.RootElement.TryGetProperty("generationConfig",out var generation);
             if((model is "gemini-3.5-flash" or "gemini-3.8-flash") && (!config || generation.GetProperty("thinkingConfig").GetProperty("thinkingLevel").GetString()!="LOW")) throw new InvalidOperationException("El modelo Flash vigente no utiliza razonamiento bajo.");
-            if(model=="gemini-2.5-flash" && config) throw new InvalidOperationException("Gemini 2.5 recibió una configuración incompatible.");
+            if(model=="gemini-2.5-flash" && generation.TryGetProperty("thinkingConfig",out _)) throw new InvalidOperationException("Gemini 2.5 recibió una configuración incompatible.");
         }
         if(AiProviders.NormalizeModel("Gemini"," models/Gémini-2.5-flash ")!="gemini-2.5-flash") throw new InvalidOperationException("No se normalizó el ID de Gemini.");
         using(var errorsClient=new HttpClient(new ErrorHandler()))

@@ -1,4 +1,6 @@
 using System.Net;
+using System.IO;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -63,13 +65,17 @@ internal sealed class ChatRouter
                 continue;
             }
 
+            string phase="antes de recibir cabeceras HTTP (conexión, TLS o espera del servicio)";
+            long started=Stopwatch.GetTimestamp();
             try
             {
-                progress?.Report($"Consultando {profile.Label}…");
+                progress?.Report($"Conectando con {profile.Label}…");
                 using var attempt=CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 attempt.CancelAfter(TimeSpan.FromSeconds(profile.Provider=="Gemini"?60:25));
                 using HttpRequestMessage request = BuildRequest(profile, mode, message, history, settings.GetPersonality(mode), memoryContext, instructionOverride);
-                using HttpResponseMessage response = await client.SendAsync(request, attempt.Token);
+                using HttpResponseMessage response = await client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,attempt.Token);
+                phase=$"después de HTTP {(int)response.StatusCode}, leyendo la respuesta";
+                progress?.Report($"{profile.Label} · HTTP {(int)response.StatusCode} en {Stopwatch.GetElapsedTime(started).TotalSeconds:0.0} s · esperando texto…");
                 if (!response.IsSuccessStatusCode)
                 {
                     int code = (int)response.StatusCode;
@@ -93,8 +99,20 @@ internal sealed class ChatRouter
                     continue;
                 }
 
-                using var json = JsonDocument.Parse(await response.Content.ReadAsByteArrayAsync(attempt.Token));
-                string? text = ReadText(profile.Provider, json.RootElement);
+                string? text;
+                if(profile.Provider=="Gemini" && response.Content.Headers.ContentType?.MediaType=="text/event-stream")
+                {
+                    text=await ReadGeminiStream(response.Content,attempt.Token,count=>
+                    {
+                        phase=count>0?$"Google empezó a enviar texto ({count} caracteres recibidos), pero no terminó":"HTTP 200 recibido, sin fragmentos de texto todavía";
+                        progress?.Report($"{profile.Label} · "+(count>0?$"recibiendo respuesta · {count} caracteres":"Google aceptó la conexión · esperando el primer fragmento…"));
+                    });
+                }
+                else
+                {
+                    using var json=JsonDocument.Parse(await response.Content.ReadAsByteArrayAsync(attempt.Token));
+                    text=ReadText(profile.Provider,json.RootElement);
+                }
                 if (string.IsNullOrWhiteSpace(text))
                 {
                     failures.Add($"{profile.Provider}: respuesta vacía o bloqueada");
@@ -109,12 +127,13 @@ internal sealed class ChatRouter
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 unavailableUntil[identity] = DateTimeOffset.UtcNow.AddSeconds(30);
-                failures.Add($"{profile.Label}: tiempo agotado ({(profile.Provider=="Gemini"?60:25)} s). Puedes usar Probar conexión en Ajustes");
+                failures.Add($"{profile.Label}: tiempo agotado tras {Stopwatch.GetElapsedTime(started).TotalSeconds:0.0} s · {phase}. Ejecuta Diagnosticar conexión en Ajustes");
             }
-            catch (Exception error) when (error is HttpRequestException or JsonException or FormatException or InvalidOperationException)
+            catch (Exception error) when (error is HttpRequestException or IOException or JsonException or FormatException or InvalidOperationException)
             {
                 unavailableUntil[identity] = DateTimeOffset.UtcNow.AddSeconds(30);
-                failures.Add($"{profile.Provider}: conexión o respuesta no válida");
+                string network=error is HttpRequestException http?$"red/{http.HttpRequestError}":error is JsonException?"JSON no válido":error is GeminiStreamException stream?stream.Message:"respuesta interrumpida o no válida";
+                failures.Add($"{profile.Label}: {network} · {phase}");
             }
         }
 
@@ -124,6 +143,83 @@ internal sealed class ChatRouter
             : $"{string.Join(" · ", failures)}. Se mostró una guía local.");
     }
 
+    private sealed class GeminiStreamException(string message) : InvalidOperationException(message) { }
+    private const string ProbeInstruction="Responde solo OK. No expliques nada. Esta es una prueba técnica de conexión.";
+    internal async Task<ChatResult> DiagnoseAsync(AiProfile profile,CancellationToken token,IProgress<string>? progress=null)
+    {
+        string prefix="";
+        if(profile.Provider=="Gemini")
+        {
+            long started=Stopwatch.GetTimestamp();
+            int? metadataStatus=null;
+            using var limit=CancellationTokenSource.CreateLinkedTokenSource(token);limit.CancelAfter(TimeSpan.FromSeconds(15));
+            try
+            {
+                progress?.Report("1/2 · Comprobando acceso a Google y disponibilidad del modelo…");
+                using var request=new HttpRequestMessage(HttpMethod.Get,"https://generativelanguage.googleapis.com/v1beta/models/"+Uri.EscapeDataString(AiProviders.NormalizeModel(profile.Provider,profile.Model)));
+                request.Headers.Add("x-goog-api-key",AiProviders.KeyFor(profile));
+                using var response=await client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,limit.Token);
+                metadataStatus=(int)response.StatusCode;
+                prefix=$"Comprobación del modelo: HTTP {(int)response.StatusCode} en {Stopwatch.GetElapsedTime(started).TotalSeconds:0.0} s. ";
+                if(!response.IsSuccessStatusCode)
+                {
+                    string detail=await ErrorDetail(response,profile,limit.Token);
+                    prefix+=detail+". ";
+                    // A key may allow generation but restrict the model-list/read operation.
+                    // Continue with the actual generation request rather than equating these permissions.
+                }
+            }
+            catch(OperationCanceledException) when(!token.IsCancellationRequested)
+            { return new(null,metadataStatus is int code?$"Google devolvió HTTP {code}, pero la lectura del error se detuvo durante 15 s. La generación aún no se probó.":"El acceso al modelo de Google no devolvió cabeceras HTTP en 15 s. La generación aún no se probó. Comprueba si Google AI Studio abre desde esta misma PC; compara con otra red para distinguir un problema local o del servicio. No se comprobó la validez de la clave."); }
+            catch(HttpRequestException error)
+            { return new(null,$"No se pudo completar la conexión de comprobación con Google: red/{error.HttpRequestError}. La generación aún no se probó. Revisa DNS, proxy o conexión de esta PC; no se comprobó la validez de la clave."); }
+        }
+        progress?.Report(prefix+"2/2 · Enviando prueba mínima de respuesta, sin historial ni PDF…");
+        var settings=new BaelSettings { OnlineChat=true,AutoFallback=false,Profiles=[profile with { Enabled=true }],UseConversationContext=false,UsePinnedMemories=false };
+        var result=await ReplyCoreAsync(settings,ChatMode.Free,"OK",[],token,progress,null,ProbeInstruction);
+        string status=result.Status.Replace("Se mostró una guía local.","La prueba no recibió una respuesta completa; no se envió ningún mensaje al chat.");
+        return new(result.Text,prefix+status);
+    }
+    internal static async Task<string> ReadGeminiStream(HttpContent content,CancellationToken token,Action<int>? received=null)
+    {
+        await using var input=await content.ReadAsStreamAsync(token);
+        using var reader=new StreamReader(input,Encoding.UTF8);
+        var data=new StringBuilder();var answer=new StringBuilder();bool finished=false;
+        void Consume()
+        {
+            if(data.Length==0) return;
+            string block=data.ToString().Trim();data.Clear();
+            if(block=="[DONE]") { finished=true;return; }
+            using var json=JsonDocument.Parse(block);
+            var root=json.RootElement;
+            if(root.TryGetProperty("error",out _)) throw new GeminiStreamException("Google devolvió un error dentro del flujo de respuesta.");
+            string? text=ReadText("Gemini",root,false);if(!string.IsNullOrEmpty(text)) answer.Append(text);
+            if(answer.Length>1000000) throw new GeminiStreamException("La respuesta excedió el límite de recepción.");
+            received?.Invoke(answer.Length);
+            if(root.TryGetProperty("candidates",out var candidates) && candidates.GetArrayLength()>0 && candidates[0].TryGetProperty("finishReason",out var reason))
+            {
+                string? end=reason.GetString();
+                if(end=="MAX_TOKENS") throw new GeminiStreamException("Google alcanzó el límite de salida antes de terminar la respuesta.");
+                if(end is not (null or "FINISH_REASON_UNSPECIFIED" or "STOP")) throw new GeminiStreamException("Google detuvo la generación: "+end+".");
+                if(end=="STOP") finished=true;
+            }
+        }
+        string? line;
+        received?.Invoke(0);
+        while((line=await reader.ReadLineAsync(token)) is not null)
+        {
+            if(line.Length==0) { Consume();if(finished) break;continue; }
+            if(line.StartsWith("data:",StringComparison.Ordinal))
+            {
+                data.Append(line[5..].TrimStart()).Append('\n');
+                if(data.Length>1000000) throw new GeminiStreamException("Google devolvió un fragmento excesivamente grande.");
+            }
+        }
+        Consume();
+        token.ThrowIfCancellationRequested();
+        if(!finished && answer.Length>0) throw new GeminiStreamException("La conexión terminó antes de la confirmación final de Google.");
+        return answer.ToString();
+    }
     internal static async Task<string> ErrorDetail(HttpResponseMessage response,AiProfile profile,CancellationToken token)
     {
         try
@@ -148,7 +244,7 @@ internal sealed class ChatRouter
         if (profile.Provider == "Gemini")
         {
             var request = new HttpRequestMessage(HttpMethod.Post,
-                $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(AiProviders.NormalizeModel(profile.Provider,profile.Model))}:generateContent");
+                $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(AiProviders.NormalizeModel(profile.Provider,profile.Model))}:streamGenerateContent?alt=sse");
             request.Headers.Add("x-goog-api-key", AiProviders.KeyFor(profile));
             // Merge adjacent text turns and discard invalid/empty entries before sending.
             // The final turn is always the current user message.
@@ -166,8 +262,10 @@ internal sealed class ChatRouter
                 ["contents"]=turns.Select(turn=>new { role=turn.Role,parts=new[] { new { text=turn.Text } } }).ToArray()
             };
             // Both supported Flash choices accept LOW. Never send MINIMAL or a numeric budget to 3.8.
+            var generation=new Dictionary<string,object> { ["maxOutputTokens"]=instructionOverride==ProbeInstruction?1024:4096 };
             if(AiProviders.NormalizeModel(profile.Provider,profile.Model)is "gemini-3.5-flash" or "gemini-3.8-flash")
-                payload["generationConfig"]=new { thinkingConfig=new { thinkingLevel="LOW" } };
+                generation["thinkingConfig"]=new { thinkingLevel="LOW" };
+            payload["generationConfig"]=generation;
             request.Content=JsonContent.Create(payload);
             return request;
         }
@@ -187,16 +285,17 @@ internal sealed class ChatRouter
         return compatible;
     }
 
-    private static string? ReadText(string provider, JsonElement root)
+    private static string? ReadText(string provider, JsonElement root,bool trim=true)
     {
         if (provider == "Gemini")
         {
             if (!root.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0
                 || !candidates[0].TryGetProperty("content", out var content) || !content.TryGetProperty("parts", out var parts))
                 return null;
-            return string.Concat(parts.EnumerateArray()
+            string combined=string.Concat(parts.EnumerateArray()
                 .Where(part => !part.TryGetProperty("thought", out var thought) || thought.ValueKind != JsonValueKind.True)
-                .Select(part => part.TryGetProperty("text", out var text) ? text.GetString() : null)).Trim();
+                .Select(part => part.TryGetProperty("text", out var text) ? text.GetString() : null));
+            return trim?combined.Trim():combined;
         }
 
         if (!root.TryGetProperty("choices", out var choices) || choices.GetArrayLength() == 0
