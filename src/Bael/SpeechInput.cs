@@ -160,9 +160,9 @@ internal static class SpeechInput
     }
 
     public static async Task<string?> TranscribeAsync(BaelSettings settings, byte[] audio,
-        CancellationToken cancellationToken, HttpClient? client = null)
+        CancellationToken cancellationToken, HttpClient? client = null, string? language = null)
     {
-        using HttpRequestMessage request = BuildRequest(settings, audio);
+        using HttpRequestMessage request = BuildRequest(settings, audio, language);
         using HttpResponseMessage response = await (client ?? Client).SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
         using var json = JsonDocument.Parse(await response.Content.ReadAsByteArrayAsync(cancellationToken));
@@ -198,7 +198,7 @@ internal static class SpeechInput
 
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromSeconds(45) };
 
-    internal static HttpRequestMessage BuildRequest(BaelSettings settings, byte[] audio)
+    internal static HttpRequestMessage BuildRequest(BaelSettings settings, byte[] audio, string? language = null)
     {
         if (string.IsNullOrWhiteSpace(settings.EffectiveVoiceKey))
             throw new InvalidOperationException("Agrega la clave de ElevenLabs en Ajustes → Voz y audio.");
@@ -207,6 +207,7 @@ internal static class SpeechInput
         var form = new MultipartFormDataContent();
         form.Add(new StringContent(settings.SpeechModel), "model_id");
         form.Add(new StringContent("false"), "tag_audio_events");
+        if(language is not null) form.Add(new StringContent(language),"language_code");
         var file = new ByteArrayContent(audio);
         file.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
         form.Add(file, "file", "bael-microphone.wav");

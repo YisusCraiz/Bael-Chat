@@ -38,6 +38,7 @@ public partial class App : Application
                 await window.VerifyCommandsAsync();
                 File.AppendAllText(resultPath,"\nAbriendo Centro del sistema");
                 window.VerifySystemPanelAccess();
+                window.VerifyEnglishPanelAccess();
                 File.AppendAllText(resultPath,"\nCentro del sistema verificado");
                 await window.VerifyVoiceInterruptionAsync();
                 await window.VerifyReplyCancellationAsync();
@@ -73,6 +74,8 @@ public partial class App : Application
                 await ChatRouterChecks.RunAsync();
                 File.AppendAllText(resultPath,"\nComprobando archivos, limpieza y lector del sistema");
                 await SystemChecks.RunAsync(stage=>File.AppendAllText(resultPath,"\n"+stage));
+                File.AppendAllText(resultPath,"\nComprobando el aula de inglés");
+                await EnglishChecks.RunAsync();
                 File.WriteAllText(resultPath, "OK");
                 Shutdown(0);
             }

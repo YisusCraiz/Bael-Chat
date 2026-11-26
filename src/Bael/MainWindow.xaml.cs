@@ -36,6 +36,7 @@ public partial class MainWindow : Window
         CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
         games?.Close(); games=null;
         systemPanel?.Close(); systemPanel=null;
+        englishPanel?.Close(); englishPanel=null;
         SelectMode(student?ChatMode.Student:ChatMode.Free);
         ApplySettings();
         AccessChanged?.Invoke(student);
@@ -139,7 +140,11 @@ public partial class MainWindow : Window
     {
         set { SpeechStatus.Text = value; SpeechNoticeChanged?.Invoke(value); }
     }
-    internal void TalkFromShortcut() => Talk(this, new RoutedEventArgs());
+    internal void TalkFromShortcut()
+    {
+        if(englishPanel?.IsVisible==true) { englishPanel.TalkFromShortcut(); return; }
+        Talk(this,new RoutedEventArgs());
+    }
     internal void SetDanceEnabled(bool enabled)
     {
         settings = settings with { DanceWithAudio = enabled };
@@ -161,6 +166,7 @@ public partial class MainWindow : Window
     private readonly PdfQuizSession pdfQuiz = new();
     private GameWindow? games;
     private SystemWindow? systemPanel;
+    private EnglishWindow? englishPanel;
     private readonly Dictionary<ChatMode, List<ChatTurn>> histories;
     private readonly MemoryJournal memoryJournal;
     private readonly MemoryData memory;
@@ -231,7 +237,7 @@ public partial class MainWindow : Window
         if (mode != selected) { pdfQuiz.Stop(); activities.Stop(mode); replyRequest?.Cancel(); StopVoice(); }
         if(StudentView && selected!=ChatMode.Student)
         { ChatStatus.Text="Vista de alumnos: pulsa Desbloquear BAEL para acceder a los otros modos."; return; }
-        if(selected!=mode) { systemPanel?.Close(); systemPanel=null; }
+        if(selected!=mode) { systemPanel?.Close(); systemPanel=null; englishPanel?.Close(); englishPanel=null; }
         mode = selected;
         ModeLabel.Text = $"Modo {Responses.Name(mode).ToLowerInvariant()}";
         UpdateActivities();
@@ -242,7 +248,7 @@ public partial class MainWindow : Window
             : mode == ChatMode.System
             ? "Escribe diagnóstico para una revisión local básica."
             : mode == ChatMode.Math ? "Escribe el ejercicio y tu intento. Te guío con pistas."
-            : mode == ChatMode.English ? "Pide presente, pasado, futuro o pronunciación." : "";
+            : mode == ChatMode.English ? "Abre Aula por niveles para escritura, lectura, escucha y conversación con progreso local." : "";
     }
     internal event Action<BaelSettings>? SettingsChanged;
 
@@ -250,6 +256,7 @@ public partial class MainWindow : Window
 
     internal void EditSettings(Window owner,bool documents=false)
     {
+        englishPanel?.Close(); englishPanel=null;
         pdfQuiz.Stop();
         CancelSpontaneous(); speechRequest?.Cancel(); replyRequest?.Cancel(); StopVoice();
         var dialog = new SettingsWindow(settings, settingsUnreadable, OpenMemory) { Owner = owner, Topmost = owner.Topmost };
@@ -304,6 +311,7 @@ public partial class MainWindow : Window
             CancelSpontaneous();
             games?.Close();
             systemPanel?.Close();
+            englishPanel?.Close();
             isClosed = true;
             activityTimer.Stop();
             replyRequest?.Cancel();
@@ -486,6 +494,8 @@ public partial class MainWindow : Window
             button.Click += async (_, _) =>
             {
                 if (!SendButton.IsEnabled) return;
+                if(activity.Prompt.StartsWith("@english:"))
+                { OpenEnglishPanel(int.Parse(activity.Prompt[9..])); return; }
                 if(activity.Prompt is "@system" or "@files" or "@cleanup" or "@ram")
                 { OpenSystemPanel(activity.Prompt switch { "@files"=>3,"@cleanup"=>4,"@ram"=>2,_=>0 }); return; }
                 if(activity.Prompt=="@pdfsearch") { Message.Text="Buscar en mis PDF: "; Message.Focus(); Message.CaretIndex=Message.Text.Length; return; }
@@ -554,6 +564,30 @@ public partial class MainWindow : Window
         if (latestReply is null) return;
         try { Clipboard.SetText(latestReply); }
         catch (System.Runtime.InteropServices.COMException) { ChatStatus.Text = "El portapapeles está ocupado. Intenta otra vez."; }
+    }
+
+    private void OpenEnglishPanel(int section,EnglishStore? practiceStore=null)
+    {
+        if(StudentView || mode!=ChatMode.English || QuerySettings.GetDocumentRule(mode).Limited) return;
+        CancelSpontaneous(); speechRequest?.Cancel(); StopVoice();
+        if(englishPanel is null)
+        {
+            englishPanel=new EnglishWindow(settings,practiceStore) { Owner=IsVisible?this:Application.Current.MainWindow,Topmost=Topmost };
+            englishPanel.Closed+=(_,_)=>englishPanel=null;
+        }
+        englishPanel.SelectSection(section); englishPanel.Show(); englishPanel.Activate();
+    }
+
+    internal void VerifyEnglishPanelAccess()
+    {
+        bool visible=IsVisible; if(!visible) Show();
+        SetStudentView(true); OpenEnglishPanel(0,EnglishStore.Volatile());
+        if(englishPanel is not null) throw new InvalidOperationException("El aula saltó la vista de alumnos.");
+        SetStudentView(false); SelectMode(ChatMode.English); OpenEnglishPanel(1,EnglishStore.Volatile());
+        if(englishPanel is null || !englishPanel.IsVisible) throw new InvalidOperationException("No abrió el aula de inglés.");
+        englishPanel.UpdateLayout(); SelectMode(ChatMode.Free);
+        if(englishPanel is not null) throw new InvalidOperationException("El aula no cerró al cambiar de modo.");
+        if(!visible) Hide();
     }
 
     private void OpenSystemPanel(int section)
@@ -635,6 +669,12 @@ public partial class MainWindow : Window
         {
             OpenSystemPanel(section);
             ShowReply(profile,"Abrí el Centro del sistema dentro de BAEL. Usa Revisar hardware para leer los componentes, o analiza los archivos y temporales desde sus pestañas. La limpieza requiere revisar la lista y pulsar Limpiar selección. No se enviaron datos del equipo a la IA.");
+            return true;
+        }
+        if(!limited && profile==ChatMode.English && EnglishCommands.Section(message) is int englishSection)
+        {
+            OpenEnglishPanel(englishSection);
+            ShowReply(profile,"Abrí el Aula de inglés. Elige nivel y tema: escritura, lectura en voz alta, escucha de 50 palabras y conversación. Los intentos y borradores se guardan localmente; la voz y la IA usan los servicios que elijas en el aula.");
             return true;
         }
         if(limited && pdfQuiz.TryReply(profile,message,out string quizReply)) { ShowReply(profile,quizReply); return true; }

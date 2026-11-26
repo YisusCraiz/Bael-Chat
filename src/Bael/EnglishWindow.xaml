@@ -1,0 +1,75 @@
+<Window x:Class="Bael.EnglishWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="BAEL · Aula de inglés" Icon="Assets/bael-unicorn.ico" Width="1080" Height="820" MinWidth="830" MinHeight="650" WindowStartupLocation="CenterOwner">
+ <Window.Resources>
+  <Style TargetType="DataGrid"><Setter Property="Foreground" Value="{DynamicResource UiText}"/><Setter Property="Background" Value="{DynamicResource UiInput}"/><Setter Property="RowBackground" Value="{DynamicResource UiPanel}"/><Setter Property="BorderBrush" Value="{DynamicResource UiBorder}"/></Style>
+  <Style TargetType="DataGridColumnHeader"><Setter Property="Foreground" Value="{DynamicResource UiText}"/><Setter Property="Background" Value="{DynamicResource UiSurface}"/><Setter Property="Padding" Value="8"/></Style>
+ </Window.Resources>
+ <Grid Margin="22"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <DockPanel>
+   <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button x:Name="FinishButton" Content="Terminar frase" Click="FinishRecording" IsEnabled="False"/><Button x:Name="CancelButton" Content="Detener" Click="CancelWork" IsEnabled="False"/></StackPanel>
+   <StackPanel><TextBlock Text="Aula de inglés" FontSize="25" FontWeight="Bold"/><TextBlock Text="Escribe · Lee · Escucha · Conversa" Foreground="{DynamicResource UiMuted}" Margin="0,5,0,10"/></StackPanel>
+  </DockPanel>
+  <Border Grid.Row="1" Background="{DynamicResource UiPanel}" CornerRadius="12" Padding="12" Margin="0,3,0,12">
+   <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="90"/><ColumnDefinition Width="*"/><ColumnDefinition Width="180"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <StackPanel Margin="0,0,10,0"><TextBlock Text="Nivel de práctica" FontSize="11"/><ComboBox x:Name="LevelChoice" SelectionChanged="LevelChanged"/></StackPanel>
+    <StackPanel Grid.Column="1" Margin="0,0,10,0"><TextBlock Text="Tema y objetivo" FontSize="11"/><ComboBox x:Name="LessonChoice" DisplayMemberPath="Title" SelectionChanged="LessonChanged"/></StackPanel>
+    <StackPanel Grid.Column="2" Margin="0,0,10,0"><TextBlock Text="Voz para escuchar" FontSize="11"/><ComboBox x:Name="VoiceChoice" SelectionChanged="PreferenceChanged"/></StackPanel>
+    <Button x:Name="ContinueButton" Grid.Column="3" Content="Continuar ruta" Click="ContinueRoute" VerticalAlignment="Bottom"/>
+   </Grid>
+  </Border>
+  <TabControl x:Name="Tabs" Grid.Row="2">
+   <TabItem Header="Ruta"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="16">
+    <TextBlock x:Name="GoalText" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock x:Name="GrammarTip" Margin="0,12,0,12" TextWrapping="Wrap"/>
+    <TextBlock Text="1. Escritura: redacta y revisa tus frases.&#10;2. Lectura: escucha el modelo y compara las palabras reconocidas.&#10;3. Escucha: oye un texto de 50 palabras y responde preguntas.&#10;4. Conversación: aplica el tema en tres objetivos guiados." TextWrapping="Wrap" LineHeight="25"/>
+    <TextBlock x:Name="RouteSummary" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,16,0,10"/>
+    <ListBox x:Name="RouteLessons" MinHeight="120"/>
+    <TextBlock Text="Elige cualquier nivel para practicar. Las marcas indican actividades realizadas, no una acreditación de nivel ni una evaluación profesional. Continuar ruta te lleva a la siguiente práctica pendiente." TextWrapping="Wrap" Foreground="{DynamicResource UiMuted}" Margin="0,14,0,0"/>
+   </StackPanel></ScrollViewer></TabItem>
+   <TabItem Header="Escritura"><Grid Margin="16"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="150"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <TextBlock x:Name="WritingTask" TextWrapping="Wrap" FontWeight="SemiBold"/>
+    <TextBlock Grid.Row="1" Text="Escribe en inglés. El subrayado y las sugerencias usan el diccionario de Windows y reglas locales; la revisión con IA es opcional y envía este texto al proveedor configurado." TextWrapping="Wrap" Foreground="{DynamicResource UiMuted}" Margin="0,8,0,8"/>
+    <TextBox x:Name="WritingEditor" Grid.Row="2" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MaxLength="3000" Language="en-US" SpellCheck.IsEnabled="True" TextChanged="DraftChanged" AutomationProperties.Name="Texto de práctica en inglés"/>
+    <WrapPanel Grid.Row="3" Margin="0,8,0,8"><Button Content="Revisar texto" Click="ReviewWriting"/><Button Content="Revisión con IA" Click="ReviewWritingAi"/><Button Content="Aplicar sugerencia elegida" Click="ApplyWritingIssue"/></WrapPanel>
+    <DataGrid x:Name="WritingIssues" Grid.Row="4" AutoGenerateColumns="False" CanUserAddRows="False"><DataGrid.Columns>
+     <DataGridTextColumn IsReadOnly="True" Header="Revisar" Binding="{Binding Original}" Width="130"/>
+     <DataGridTemplateColumn Header="Opciones de mejora" Width="190"><DataGridTemplateColumn.CellTemplate><DataTemplate><ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Choice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+     <DataGridTextColumn IsReadOnly="True" Header="Por qué" Binding="{Binding Reason}" Width="*"/><DataGridTextColumn IsReadOnly="True" Header="Fuente" Binding="{Binding Source}" Width="130"/>
+    </DataGrid.Columns></DataGrid>
+    <TextBlock x:Name="WritingFeedback" Grid.Row="5" TextWrapping="Wrap" Margin="0,8,0,0"/>
+   </Grid></TabItem>
+   <TabItem Header="Lectura y voz"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="16">
+    <TextBlock Text="Escucha, lee y repasa palabras" FontSize="19" FontWeight="SemiBold"/><Border Background="{DynamicResource UiPanel}" CornerRadius="12" Padding="14" Margin="0,10,0,10"><TextBlock x:Name="ReadingPassage" TextWrapping="Wrap" FontSize="17" LineHeight="26"/></Border>
+    <WrapPanel><Button Content="Escuchar modelo" Click="PlayReading"/><Button Content="Grabar lectura" Click="RecordReading"/><Button Content="Comparar palabras" Click="EvaluateReading"/></WrapPanel>
+    <TextBlock Text="La grabación dura hasta 30 segundos. Se envía a ElevenLabs para transcribir en inglés con tu clave. Puedes revisar el texto antes de comparar. Esta actividad compara palabras, no evalúa fonemas, acento ni entonación; una diferencia puede ser del reconocimiento." TextWrapping="Wrap" Foreground="{DynamicResource UiMuted}" Margin="0,10,0,8"/>
+    <TextBox x:Name="ReadingInput" Height="100" MaxLength="3000" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" TextChanged="ReadingChanged" Language="en-US" AutomationProperties.Name="Transcripción o lectura escrita"/>
+    <TextBlock x:Name="ReadingScore" Margin="0,12,0,8" FontWeight="Bold" TextWrapping="Wrap"/>
+    <ItemsControl x:Name="ReadingWords"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Border Background="{Binding Background}" CornerRadius="6" Padding="7,4" Margin="2" ToolTip="{Binding Detail}"><TextBlock Text="{Binding Label}" Foreground="{Binding Foreground}"/></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+    <TextBlock Text="Verde: coincide · rojo: palabra por repasar o no reconocida · amarillo: palabra adicional. Pasa el cursor para ver el detalle." TextWrapping="Wrap" Foreground="{DynamicResource UiMuted}" Margin="0,10,0,8"/>
+    <TextBlock x:Name="ReadingFeedback" TextWrapping="Wrap"/>
+   </StackPanel></ScrollViewer></TabItem>
+   <TabItem Header="Escucha"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="16">
+    <TextBlock x:Name="ListeningTitle" FontSize="19" FontWeight="SemiBold"/>
+    <TextBlock Text="Escucha el texto sin verlo y responde. Puedes repetirlo. Si muestras la transcripción, el resultado se guardará como práctica con apoyo de texto." TextWrapping="Wrap" Margin="0,8,0,10"/>
+    <WrapPanel><Button Content="Reproducir 50 palabras" Click="PlayListening"/><Button Content="Nuevo intento" Click="NewListening"/><CheckBox x:Name="TextSupport" Content="Mostrar texto (práctica asistida)" Checked="SupportChanged" Unchecked="SupportChanged" VerticalAlignment="Center" Margin="12,0,0,0"/></WrapPanel>
+    <TextBlock x:Name="ListeningPassage" Visibility="Collapsed" TextWrapping="Wrap" FontSize="16" Margin="0,12,0,12"/>
+    <StackPanel x:Name="QuestionsPanel" Margin="0,12,0,8" IsEnabled="False"/>
+    <Button x:Name="GradeListeningButton" Content="Comprobar respuestas" Click="GradeListening" HorizontalAlignment="Left" IsEnabled="False"/>
+    <TextBlock x:Name="ListeningFeedback" TextWrapping="Wrap" Margin="0,12,0,0"/>
+   </StackPanel></ScrollViewer></TabItem>
+   <TabItem Header="Conversación"><Grid Margin="16"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <TextBlock x:Name="ConversationGoal" TextWrapping="Wrap" FontWeight="SemiBold"/>
+    <CheckBox x:Name="CloudConversation" Grid.Row="1" Content="Usar IA para conversar (envía mensajes de este escenario a tus proveedores)" Checked="PreferenceChanged" Unchecked="PreferenceChanged" Margin="0,10,0,10"/>
+    <ListBox x:Name="Dialogue" Grid.Row="2" ScrollViewer.HorizontalScrollBarVisibility="Disabled"><ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="8"/></DataTemplate></ListBox.ItemTemplate></ListBox>
+    <TextBox x:Name="ConversationInput" Grid.Row="3" Height="74" MaxLength="2000" AcceptsReturn="True" TextWrapping="Wrap" Language="en-US" SpellCheck.IsEnabled="True" TextChanged="DraftChanged" Margin="0,10,0,8" AutomationProperties.Name="Respuesta para conversar en inglés"/>
+    <WrapPanel Grid.Row="4"><Button Content="Enviar" Click="SendConversation"/><Button Content="Grabar respuesta" Click="RecordConversation"/><Button Content="Escuchar BAEL" Click="PlayConversation"/><Button Content="Reiniciar escenario" Click="RestartConversation"/></WrapPanel>
+    <TextBlock x:Name="ConversationFeedback" Grid.Row="5" TextWrapping="Wrap" Margin="0,8,0,0"/>
+   </Grid></TabItem>
+   <TabItem Header="Progreso local"><Grid Margin="16"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="180"/></Grid.RowDefinitions>
+    <TextBlock Text="Historial de intentos, respuestas y comentarios. Se conserva por nivel y tema, separado del historial del chat. Hasta 300 intentos recientes; las marcas de actividades realizadas se conservan." TextWrapping="Wrap" Margin="0,0,0,10"/>
+    <ListBox x:Name="History" Grid.Row="1" DisplayMemberPath="Label" SelectionChanged="HistoryChanged"/>
+    <TextBox x:Name="HistoryDetail" Grid.Row="2" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,10,0,0"/>
+   </Grid></TabItem>
+  </TabControl>
+  <StackPanel Grid.Row="3" Margin="0,10,0,0"><ProgressBar x:Name="MicLevel" Maximum="1" Height="4" Visibility="Collapsed"/><TextBlock x:Name="WorkStatus" Text="Listo para practicar" TextWrapping="Wrap" Foreground="{DynamicResource UiMuted}" AutomationProperties.LiveSetting="Polite"/><TextBlock x:Name="SaveStatus" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource UiMuted}"/></StackPanel>
+ </Grid>
+</Window>
