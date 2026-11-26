@@ -21,6 +21,7 @@ public partial class EnglishWindow : Window
     private bool loading=true,closed,recording,finishCapture,voiceTranscript;
     private CancellationTokenSource? operation;
     private string reviewedText="";
+    private bool hasReviewed;
     internal EnglishWindow(BaelSettings settings,EnglishStore? store=null)
     {
         this.settings=settings; this.store=store??new EnglishStore();
@@ -32,6 +33,11 @@ public partial class EnglishWindow : Window
         CloudConversation.IsChecked=this.store.Data.CloudConversation;
         draftTimer.Tick+=(_,_)=> { draftTimer.Stop(); SaveDraft(); };
         loading=false; LoadLesson(lesson);
+        Loaded+=(_,_)=>
+        {
+            Height=Math.Max(MinHeight,Math.Min(Height,SystemParameters.WorkArea.Height-24));
+            Width=Math.Max(MinWidth,Math.Min(Width,SystemParameters.WorkArea.Width-24));
+        };
         Closing+=(_,_)=>SaveDraft();
         Closed+=(_,_)=> { closed=true; draftTimer.Stop(); operation?.Cancel(); audio.Dispose(); };
     }
@@ -50,7 +56,10 @@ public partial class EnglishWindow : Window
         loading=true; lesson=next; store.Data.Lesson=lesson.Id;
         var draft=store.Data.Draft(lesson.Id);
         GoalText.Text=lesson.Level+" · "+lesson.Title+"\n"+lesson.Goal; GrammarTip.Text=lesson.Tip;
-        WritingTask.Text=lesson.Writing; WritingEditor.Text=draft.Writing; WritingIssues.ItemsSource=null; WritingFeedback.Text="";
+        WritingTask.Text=lesson.Writing; WritingTaskSpanish.Text=EnglishCourse.WritingSpanish(lesson.Id);
+        WritingExample.Text=lesson.Steps[0].Hint;
+        WritingEditor.Text=draft.Writing; WritingIssues.ItemsSource=null; WritingFeedback.Text=""; hasReviewed=false; reviewedText="";
+        LevelHelp.Text=EnglishCourse.LevelDescription(lesson.Level);
         ReadingPassage.Text=lesson.Reading; ReadingInput.Text=draft.Reading; voiceTranscript=false;
         ReadingWords.ItemsSource=null; ReadingScore.Text=""; ReadingFeedback.Text="";
         ListeningTitle.Text=$"{lesson.Title} · {EnglishCourse.WordCount(lesson.Listening)} palabras";
@@ -59,7 +68,7 @@ public partial class EnglishWindow : Window
         if(draft.Conversation.Count==0) draft.Conversation.Add(new("model",lesson.Steps[0].Prompt));
         BuildQuestions(draft); ListeningFeedback.Text=store.Data.Attempts.LastOrDefault(a=>a.Lesson==lesson.Id && a.Skill.StartsWith("Escucha"))?.Feedback??"";
         DisplayDialogue(); UpdateListeningReady();
-        loading=false; RefreshProgress(); SaveDraft();
+        loading=false; RefreshProgress(); RefreshWritingState(); SaveDraft();
         WorkStatus.Text="Tema cargado · puedes seguir la ruta o elegir una actividad.";
     }
     private int[] Answers()=>questions.Select(q=>q.SelectedItem is ComboBoxItem item && item.Tag is int index?index:-1).ToArray();
@@ -68,19 +77,22 @@ public partial class EnglishWindow : Window
         questions.Clear(); QuestionsPanel.Children.Clear();
         for(int i=0;i<lesson.Questions.Length;i++)
         {
-            QuestionsPanel.Children.Add(new TextBlock { Text=$"{i+1}. {lesson.Questions[i].Prompt}",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,4) });
-            var combo=new ComboBox { MinWidth=300,HorizontalAlignment=HorizontalAlignment.Left };
+            var card=new StackPanel();
+            card.Children.Add(new TextBlock { Text=$"{i+1}. {lesson.Questions[i].Prompt}",FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,9) });
+            card.Children.Add(new TextBlock { Text="Tu respuesta",FontSize=12,Margin=new Thickness(0,0,0,4) });
+            var combo=new ComboBox { HorizontalAlignment=HorizontalAlignment.Stretch,ToolTip="Elige una respuesta de la lista" };
             foreach(int option in Enumerable.Range(0,3).OrderBy(_=>Random.Shared.Next()))
             {
                 var item=new ComboBoxItem { Content=lesson.Questions[i].Options[option],Tag=option }; combo.Items.Add(item);
                 if(i<draft.ListeningAnswers.Length && option==draft.ListeningAnswers[i]) combo.SelectedItem=item;
             }
-            combo.SelectionChanged+=DraftChanged; questions.Add(combo); QuestionsPanel.Children.Add(combo);
+            combo.SelectionChanged+=DraftChanged; questions.Add(combo); card.Children.Add(combo);
+            QuestionsPanel.Children.Add(new Border { Child=card,Padding=new Thickness(14),CornerRadius=new CornerRadius(12),Background=(System.Windows.Media.Brush)FindResource("UiPanel"),BorderBrush=(System.Windows.Media.Brush)FindResource("UiBorder"),BorderThickness=new Thickness(1),Margin=new Thickness(0,0,0,10) });
         }
     }
     private void PreferenceChanged(object sender,RoutedEventArgs e) { if(!loading) SaveDraft(); }
     private void DraftChanged(object sender,RoutedEventArgs e)
-    { if(loading || closed) return; draftTimer.Stop(); draftTimer.Start(); }
+    { if(loading || closed) return; RefreshWritingState(); draftTimer.Stop(); draftTimer.Start(); }
     private void ReadingChanged(object sender,TextChangedEventArgs e)
     { if(!loading) voiceTranscript=false; DraftChanged(sender,e); }
     private void SaveDraft()
@@ -99,8 +111,30 @@ public partial class EnglishWindow : Window
         RouteLessons.ItemsSource=EnglishCourse.Lessons.Where(l=>l.Level==lesson.Level).Select(l=>l.Title+" · "+string.Join(" · ",EnglishCourse.Skills.Select(s=>(store.Data.Completed(l,s)?"✓ ":"○ ")+s))).ToArray();
         int done=EnglishCourse.Lessons.Where(l=>l.Level==lesson.Level).Sum(l=>EnglishCourse.Skills.Count(s=>store.Data.Completed(l,s)));
         RouteSummary.Text=$"{lesson.Level}: {done}/8 prácticas realizadas. Escritura cuenta revisión; lectura requiere 70% de coincidencia; escucha 70% sin texto; conversación sus tres objetivos guiados.";
+        LevelProgressText.Text=$"Tu avance: {done} de 8 prácticas";
+        int pending=Array.FindIndex(EnglishCourse.Skills,skill=>!store.Data.Completed(lesson,skill));
+        ContinueButton.Content=pending<0?"Siguiente tema →":"Seguir: "+new[] { "escritura","lectura","escucha","conversación" }[pending]+" →";
         History.ItemsSource=store.Data.Attempts.AsEnumerable().Reverse().ToArray();
     }
+    private void GoPractice(object sender,RoutedEventArgs e)
+    { if(sender is FrameworkElement item && int.TryParse(item.Tag as string,out int section)) SelectSection(section); }
+    private void RefreshWritingState()
+    {
+        WritingCounter.Text=$"{EnglishCourse.WordCount(WritingEditor.Text)} palabras · tu borrador se guarda al pausar";
+        UndoCorrection.IsEnabled=WritingEditor.CanUndo;
+        int count=WritingIssues.Items.Count;
+        CorrectionCount.Text=count==0?"":$"{count} {(count==1?"sugerencia para revisar":"sugerencias para revisar")}";
+        WritingEmpty.Visibility=count==0?Visibility.Visible:Visibility.Collapsed;
+        WritingEmptyTitle.Text=hasReviewed?"Sin observaciones detectadas":"Tu revisión aparecerá aquí";
+        WritingEmptyBody.Text=hasReviewed?"Vuelve a leer tus frases y comprueba que expresen tu idea. No encontrar observaciones no garantiza que todo esté correcto.":"Escribe unas frases y pulsa Revisar mi texto. Tú decides qué sugerencias utilizar.";
+    }
+    private void UndoWriting(object sender,RoutedEventArgs e)
+    {
+        if(!WritingEditor.CanUndo) return;
+        WritingEditor.Undo(); SaveDraft(); AnalyzeWriting(false);
+        WritingFeedback.Text="Corrección deshecha. Puedes seguir escribiendo o revisar de nuevo.";
+    }
+
     private void ContinueRoute(object sender,RoutedEventArgs e)
     {
         int index=Array.FindIndex(EnglishCourse.Skills,s=>!store.Data.Completed(lesson,s));
@@ -130,8 +164,8 @@ public partial class EnglishWindow : Window
     private void FinishRecording(object sender,RoutedEventArgs e)=>finishCapture=true;
     private void AnalyzeWriting(bool record)
     {
-        reviewedText=WritingEditor.Text;
-        if(string.IsNullOrWhiteSpace(reviewedText)) { WritingFeedback.Text="Escribe unas frases antes de revisar."; return; }
+        reviewedText=WritingEditor.Text; hasReviewed=true;
+        if(string.IsNullOrWhiteSpace(reviewedText)) { WritingFeedback.Text="Primero escribe una o dos frases. Puedes abrir la frase de ejemplo si necesitas una idea."; return; }
         var issues=EnglishPractice.Review(reviewedText).ToList(); bool available=true;
         try
         {
@@ -149,8 +183,9 @@ public partial class EnglishWindow : Window
         }
         catch(Exception error) when(error is InvalidOperationException or NotSupportedException or COMException) { available=false; }
         WritingIssues.ItemsSource=issues.DistinctBy(i=>(i.Start,i.Length)).OrderBy(i=>i.Start).Take(40).ToArray();
-        WritingFeedback.Text=$"{WritingIssues.Items.Count} observaciones detectadas. Selecciona una fila y una opción para aplicarla. "+
-            (available?"Son sugerencias del diccionario y reglas básicas; que no aparezcan errores no garantiza que todo esté correcto.":"El diccionario de Windows no está disponible; se aplicaron las reglas locales.");
+        WritingFeedback.Text=WritingIssues.Items.Count>0?"Tu idea ya está escrita. Revisa las tarjetas de al lado y usa las correcciones que te ayuden.":"No encontré detalles en esta revisión. Lee tus frases una vez más para comprobar su claridad.";
+        if(!available) WritingFeedback.Text+=" Se usó la revisión básica; el diccionario de Windows no está disponible.";
+        RefreshWritingState();
         if(record) AddAttempt("Escritura",null,reviewedText,WritingFeedback.Text+"\n"+string.Join("\n",WritingIssues.Items.OfType<EnglishIssue>().Select(i=>i.Original+" → "+i.Choice+" · "+i.Reason)),"Revisión local");
     }
     private void ReviewWriting(object sender,RoutedEventArgs e)=>AnalyzeWriting(true);
@@ -166,7 +201,8 @@ public partial class EnglishWindow : Window
             if(result.Text is not null && EnglishPractice.TryAiReview(result.Text,source,out var extra))
             {
                 var local=WritingIssues.Items.OfType<EnglishIssue>(); WritingIssues.ItemsSource=local.Concat(extra).DistinctBy(i=>(i.Start,i.Length)).OrderBy(i=>i.Start).ToArray();
-                WritingFeedback.Text=$"{WritingIssues.Items.Count} propuestas locales y de IA. Revisa el contexto antes de aplicar; no se modifica nada automáticamente.";
+                WritingFeedback.Text="Ya tienes nuevas propuestas. Lee cada explicación y decide qué correcciones quieres usar.";
+                RefreshWritingState();
                 AddAttempt("Escritura",null,source,WritingFeedback.Text+"\n"+string.Join("\n",WritingIssues.Items.OfType<EnglishIssue>().Select(i=>i.Original+" → "+i.Choice+" · "+i.Reason)),"Revisión local + IA");
             }
             else WritingFeedback.Text="No llegó una revisión de IA aplicable al texto. Se mantienen las propuestas locales.";
@@ -175,13 +211,26 @@ public partial class EnglishWindow : Window
     }
     private void ApplyWritingIssue(object sender,RoutedEventArgs e)
     {
-        WritingIssues.CommitEdit(DataGridEditingUnit.Cell,true); WritingIssues.CommitEdit(DataGridEditingUnit.Row,true);
-        if(WritingIssues.SelectedItem is not EnglishIssue issue) { WritingFeedback.Text="Selecciona una observación de la lista."; return; }
+        if(sender is Button { Tag: EnglishIssue clicked }) WritingIssues.SelectedItem=clicked;
+        if(WritingIssues.SelectedItem is not EnglishIssue issue) { WritingFeedback.Text="Pulsa Usar esta corrección en una tarjeta."; return; }
         string text=WritingEditor.Text;
         if(text!=reviewedText || issue.Start<0 || issue.Start+issue.Length>text.Length || text.Substring(issue.Start,issue.Length)!=issue.Original || !issue.Options.Contains(issue.Choice))
         { WritingFeedback.Text="El texto cambió desde la revisión. Pulsa Revisar texto antes de aplicar otra propuesta."; return; }
-        WritingEditor.Text=text[..issue.Start]+issue.Choice+text[(issue.Start+issue.Length)..];
+        var remaining=WritingIssues.Items.OfType<EnglishIssue>().Where(i=>i!=issue && i.Source=="Sugerencia IA").ToArray();
+        WritingEditor.BeginChange();
+        try { WritingEditor.Select(issue.Start,issue.Length); WritingEditor.SelectedText=issue.Choice; }
+        finally { WritingEditor.EndChange(); }
         SaveDraft(); AnalyzeWriting(false);
+        var retained=new List<EnglishIssue>();
+        foreach(var previous in remaining)
+        {
+            int start=WritingEditor.Text.IndexOf(previous.Original,StringComparison.Ordinal);
+            if(start>=0 && WritingEditor.Text.IndexOf(previous.Original,start+previous.Original.Length,StringComparison.Ordinal)<0)
+                retained.Add(previous with { Start=start });
+        }
+        WritingIssues.ItemsSource=WritingIssues.Items.OfType<EnglishIssue>().Concat(retained).DistinctBy(i=>(i.Start,i.Length)).OrderBy(i=>i.Start).ToArray();
+        RefreshWritingState();
+        WritingFeedback.Text=$"Listo: cambiaste «{issue.Original}» por «{issue.Choice}». "+(WritingIssues.Items.Count>0?"Puedes seguir con la siguiente tarjeta.":"Vuelve a leer tu texto completo.");
     }
     private string Engine=>VoiceChoice.SelectedItem as string??"Windows local";
     private async void PlayReading(object sender,RoutedEventArgs e)=>await Run("Reproduciendo el modelo de lectura…",async token=>
@@ -232,6 +281,7 @@ public partial class EnglishWindow : Window
         bool support=TextSupport.IsChecked==true; ListeningPassage.Visibility=support?Visibility.Visible:Visibility.Collapsed;
         bool ready=store.Data.Draft(lesson.Id).Listened || support;
         QuestionsPanel.IsEnabled=ready; GradeListeningButton.IsEnabled=ready;
+        ListeningState.Text=!ready?"Paso 1 · Escucha el relato para abrir las preguntas.":store.Data.Draft(lesson.Id).SeenTranscript?"Práctica con apoyo de texto · elige tus respuestas y revisa la explicación.":"Paso 2 · Elige una respuesta en cada tarjeta y pulsa Revisar mis respuestas.";
     }
     private void NewListening(object sender,RoutedEventArgs e)
     {
@@ -251,7 +301,7 @@ public partial class EnglishWindow : Window
     }
     private void DisplayDialogue()
     {
-        var draft=store.Data.Draft(lesson.Id); Dialogue.ItemsSource=draft.Conversation.Select(t=>new { Text=(t.Role=="user"?"Tú: ":"BAEL: ")+t.Text }).ToArray();
+        var draft=store.Data.Draft(lesson.Id); Dialogue.ItemsSource=draft.Conversation.Select(t=>new { Text=t.Text,Speaker=t.Role=="user"?"Tú":"BAEL · tu compañero de práctica",Bubble=FindResource(t.Role=="user"?"UiInset":"UiPanel"),Spacing=t.Role=="user"?new Thickness(55,5,0,5):new Thickness(0,5,55,5) }).ToArray();
         if(Dialogue.Items.Count>0) Dialogue.ScrollIntoView(Dialogue.Items[Dialogue.Items.Count-1]);
         ConversationGoal.Text=$"{lesson.Title} · objetivos guiados: {draft.Step}/3\n"+(draft.Step<3?lesson.Steps[draft.Step].Prompt:"Escenario completado. Puedes seguir conversando con IA o reiniciarlo.");
     }
@@ -266,7 +316,7 @@ public partial class EnglishWindow : Window
             string local=draft.Step>=3?"Well done! You have practised all three goals. Tell me something else about this topic, or restart the scenario.":
                 accepted?lesson.Steps[draft.Step].Prompt:"Let's try a complete sentence. "+lesson.Steps[draft.Step].Prompt+" Example: "+lesson.Steps[draft.Step].Hint;
             draft.Conversation.Add(new("user",text)); draft.Conversation.Add(new("model",local)); draft.Conversation=draft.Conversation.TakeLast(20).ToList();
-            ConversationInput.Text=""; ConversationFeedback.Text=accepted?"Encontré una estructura o palabra del objetivo. Esto no certifica gramática ni fluidez.":"La guía local busca una frase de al menos cuatro palabras y una palabra del objetivo. Usa el ejemplo como apoyo.";
+            ConversationInput.Text=""; ConversationFeedback.Text=accepted?"Bien: apareció una palabra o estructura del objetivo. Sigamos con la siguiente pregunta.":"Vamos paso a paso: intenta una frase completa con alguna palabra del ejemplo. La guía local orienta por palabras clave, no evalúa tu fluidez.";
             DisplayDialogue(); SaveDraft();
             if(previous<3 && draft.Step==3) AddAttempt("Conversación",null,text,"Tres objetivos guiados practicados. No es una calificación de fluidez.","Guía por objetivos");
             if(CloudConversation.IsChecked==true && settings.OnlineChat)
@@ -302,6 +352,8 @@ public partial class EnglishWindow : Window
         if(WritingIssues.Items.Count<2) throw new InvalidOperationException("La revisión local perdió errores básicos.");
         WritingIssues.SelectedIndex=0; ApplyWritingIssue(this,new RoutedEventArgs());
         if(!WritingEditor.Text.Contains("I am")) throw new InvalidOperationException("No se aplicó la sugerencia elegida.");
+        UndoWriting(this,new RoutedEventArgs());
+        if(!WritingEditor.Text.Contains("I is")) throw new InvalidOperationException("No se pudo deshacer la corrección.");
         ReadingInput.Text=lesson.Reading; EvaluateReading(this,new RoutedEventArgs());
         if(!ReadingScore.Text.Contains("100%")) throw new InvalidOperationException("La lectura no comparó el intento.");
         TextSupport.IsChecked=true;

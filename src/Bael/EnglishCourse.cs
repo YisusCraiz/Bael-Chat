@@ -63,6 +63,20 @@ internal static class EnglishCourse
             [new("What benefit appeared in the trial?",["Less repetitive work","No unusual cases","No need for staff"],0,"El beneficio observado fue reducir trabajo repetitivo."),new("How were uncertain results handled?",["Deleted automatically","Reviewed by staff","Sent without checking"],1,"El personal los revisaba antes de actuar."),new("What did managers decide?",["Claim perfect reliability","Remove every safeguard","Test more before expanding"],2,"Decidieron probar con otras solicitudes antes de ampliar el uso.")],
             [new("What benefit could an automated tool offer your organisation?",["could","may","reduce","help"],"It could reduce repetitive work and help staff focus on difficult cases."),new("What limitation would you warn users about?",["however","risk","might","uncertain"],"However, it might misclassify unusual requests."),new("Under what conditions would you recommend using it?",["if","provided","review","test","monitor"],"I would recommend it if staff review uncertain results and monitor errors.")])
     ];
+    internal static string LevelDescription(string level)=>level switch
+    { "A1"=>"A1 · Primeros pasos: frases cortas sobre ti y tu día.","A2"=>"A2 · Situaciones cotidianas: cuenta experiencias y pide información.","B1"=>"B1 · Conecta tus ideas: explica problemas, razones y planes.",_=>"B2 · Argumenta con claridad: compara ideas y explica sus límites." };
+    internal static string WritingSpanish(string id)=>id switch
+    {
+        "a1-day"=>"Escribe cuatro frases: tu nombre, qué haces por la mañana, qué estudias y algo que te gusta.",
+        "a1-cafe"=>"Imagina que estás en una cafetería. Pide una bebida y algo de comer, y pregunta el precio con cortesía.",
+        "a2-weekend"=>"Cuenta en cinco frases qué hiciste el fin de semana pasado. Añade dos planes para el próximo.",
+        "a2-travel"=>"Escribe un mensaje para preguntar cómo llegar a la estación, cuánto cuesta el boleto y a qué hora sale el tren.",
+        "b1-work"=>"Redacta un correo sobre un problema pequeño de trabajo. Propón dos soluciones y explica cuál recomiendas.",
+        "b1-study"=>"Compara estudiar a solas y con un compañero. Da dos razones y explica qué harás para estudiar mejor.",
+        "b2-environment"=>"Propón cómo mejorar el transporte de una ciudad. Explica una ventaja, una limitación y una recomendación equilibrada.",
+        _=>"Explica si una organización debería usar herramientas automáticas para tomar decisiones importantes. Incluye un beneficio, un riesgo y condiciones de uso responsable."
+    };
+
     internal static int WordCount(string text)=>Regex.Matches(text,@"\b[A-Za-z]+(?:['’][A-Za-z]+)?\b").Count;
     internal static EnglishLesson Get(string id)=>Lessons.FirstOrDefault(l=>l.Id==id)??Lessons[0];
 }

@@ -6,6 +6,7 @@ namespace Bael;
 internal sealed record EnglishIssue(int Start,int Length,string Original,string[] Options,string Reason,string Source)
 {
     public string Choice {get;set;}=Options.FirstOrDefault()??"";
+    public string Category=>Source=="Sugerencia IA"?"Una propuesta para tu texto":Source.Contains("ortografía",StringComparison.OrdinalIgnoreCase)?"Revisa esta palabra":"Un detalle de gramática";
 }
 internal sealed record WordMatch(string Expected,string Heard,string Kind)
 {

@@ -279,3 +279,12 @@ Voz: Windows local necesita una voz inglesa SAPI instalada y usa la salida prede
 Borradores, respuestas, feedback, nivel/tema, selección de voz, conversaciones y marcas de actividad se guardan localmente en `%LOCALAPPDATA%/BAEL/english-study.dat`, cifrados con DPAPI para el usuario de Windows. Se conservan los 300 intentos recientes; las marcas de actividad quedan separadas de ese límite. Este progreso es independiente del historial general del chat. El guardado se hace al pausar la escritura, cambiar de tema, evaluar o cerrar. Si el archivo es ilegible se conserva y se bloquea la sobrescritura, indicando el problema en el aula.
 
 Pruebas: 50 palabras en los ocho textos; claves y explicaciones de preguntas; alineación por palabras; reglas locales y propuestas IA ambiguas; selección de sugerencias en la ventana, apoyo de texto, separación entre niveles, guardado/recuperación cifrados y conservación de un archivo ilegible; envío de idioma inglés en una transcripción simulada; acceso desde el modo y cierre al cambiarlo. No se utilizan claves reales, micrófonos ni reproducción de sonido en las pruebas automáticas. La voz instalada, los dispositivos y el reconocimiento deben probarse en la PC real.
+
+
+### Guía visual del aula
+
+El aula usa navegación lateral por pasos (Mi ruta, Escribir, Leer conmigo, Escuchar, Conversar y Mi progreso), una descripción clara del nivel y un botón que nombra la práctica siguiente. Mi ruta incluye cuatro tarjetas que explican qué harás y abren la actividad. La ventana ajusta su tamaño al área de trabajo disponible.
+
+Escritura presenta una consigna en español, la original en inglés y una frase de apoyo desplegables. El editor muestra un contador de palabras; Revisar mi texto permanece accesible al pie del editor. Las propuestas aparecen como tarjetas con Escribiste, Puedes usar, una explicación y Usar esta corrección. El detalle técnico de la fuente queda desplegable. Deshacer permite revertir la edición y se comprueba que no se reemplacen fragmentos de una revisión desactualizada. Al aplicar una propuesta se conservan las otras sugerencias de IA si sus fragmentos siguen siendo únicos en el texto actualizado.
+
+Lectura enumera los tres pasos de escuchar, grabar y ver las palabras. Escucha indica cuándo se habilitan las preguntas y las presenta en tarjetas con una respuesta por lista. Conversación distingue los mensajes de BAEL y del alumno mediante burbujas. Se conservan los niveles, los contenidos, los límites de la evaluación por transcripción y el guardado local.
