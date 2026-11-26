@@ -392,7 +392,7 @@ public partial class SettingsWindow : Window
         PersonalityDetail.SelectedItem = personality.Detail;
         PersonalityAddress.Text = personality.Address;
         PersonalityInstructions.Text = personality.Instructions;
-        PersonalityPreview.Text = "Pulsa Ver ejemplo local para probar estos ajustes.";
+        PersonalityPreview.Text = "Ver ejemplo local muestra una guía breve. El tono, apodo y las instrucciones se aplican a las respuestas con IA, sin añadir saludos ni frases fijas en cada turno.";
         loadingPersonality = false;
     }
 

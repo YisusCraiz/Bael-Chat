@@ -34,35 +34,16 @@ internal sealed record ModePersonality
         $"Extensión preferida: {Detail}. " +
         (string.IsNullOrWhiteSpace(Address) ? "" : $"Dirígete al usuario como «{Address}» cuando encaje. ") +
         $"Preferencias de expresión del usuario: «{Instructions}». " +
-        "Aplica estas preferencias al tono y la forma, conservando el propósito del modo y las reglas de enseñanza.";
+        "Aplica estas preferencias al tono y la forma, conservando el propósito del modo y las reglas de enseñanza. " +
+        "Habla de forma natural, como en una conversación cotidiana, tanto si el mensaje viene por voz como escrito. " +
+        "Responde primero a lo que acaba de decir el usuario y sigue el hilo; no vuelvas a presentarte ni expliques el modo en cada turno. " +
+        "Evita saludos de plantilla, muletillas repetidas, moralejas, resúmenes y bromas añadidas sin relación. " +
+        "Usa el nombre solo cuando encaje, no en cada respuesta. Haz como máximo una pregunta y solo si ayuda a continuar. " +
+        "No desvíes la charla ni ofrezcas actividades nuevas si no vienen al caso. No fuerces listas ni encabezados en la charla normal. " +
+        (Detail=="Breve"?"Por defecto usa una o dos frases cortas. ":Detail=="Detallado"?"Puedes dar más detalle útil, sin repetir ideas ni alargarte con introducciones. ":"Por defecto usa dos a cuatro frases cortas, alrededor de 25 a 60 palabras; si basta menos, di menos. ") +
+        "Amplía si el usuario lo pide o si hace falta para explicar bien el punto. Estas pautas de brevedad no sustituyen los formatos, las fuentes ni los pasos necesarios de las actividades.";
 
-    public string FormatLocal(ChatMode mode, string reply)
-    {
-        string opening = Tone switch
-        {
-            "Cómplice y curioso" => "Te escucho.",
-            "Competitivo y teatral" => "¡Entra a mi sala de retos!",
-            "Cercano y juguetón" => "Vamos a ello.",
-            "Misterioso y teatral" => "Abramos esta pequeña escena.",
-            "Ingenioso y bromista" => "Tengo una idea.",
-            "Paciente y motivador" => "Vamos paso a paso.",
-            "Alegre y expresivo" => "¡Vamos a practicar!",
-            "Formal y respetuoso" => "Con gusto.",
-            _ => "Revisemos."
-        };
-        string address = string.IsNullOrWhiteSpace(Address) ? "" : $"{Address}, ";
-        string joke = Humor >= 2 ? mode switch
-        {
-            ChatMode.Free => " Tenemos tiempo para una buena historia.",
-            ChatMode.Gamer => " Mi cara de victoria viene incluida con el traje.",
-            ChatMode.Student => " El unicornio también está en su arco de estudio.",
-            ChatMode.Tarot => " Las cartas prometieron llegar antes que la tarea.",
-            ChatMode.Comedy => " Al menos la mochila ya tiene experiencia cargando problemas.",
-            ChatMode.System => " Hoy el reinicio no se llevará todo el crédito.",
-            ChatMode.Math => " La incógnita puede esconderse, pero vamos a encontrar el camino.",
-            _ => " Hasta los verbos necesitan ensayar su papel."
-        } : "";
-        string extra = Detail == "Detallado" ? "\nCuéntame qué has intentado para adaptar el siguiente paso." : "";
-        return $"{address}{opening}\n{reply}{joke}{extra}";
-    }
+    // Local activities already carry their own voice and teaching steps.
+    // Never decorate every turn or trim away instructions and source references.
+    public string FormatLocal(ChatMode mode,string reply) => reply.Trim();
 }

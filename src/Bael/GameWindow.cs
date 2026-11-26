@@ -22,6 +22,7 @@ public sealed class GameWindow : Window
     private readonly List<CheckBox> picks = new();
     private readonly CancellationTokenSource lifetime = new();
     private bool poker, busy;
+    private int lastTaunt=-1;
     internal event Action<string>? Comment;
 
     internal GameWindow(ModePersonality personality,string theme="Claro")
@@ -78,7 +79,7 @@ public sealed class GameWindow : Window
         selection.Text=poker?"Puedes conservar las cinco cartas: no es obligatorio cambiarlas.":"";
         cupsTab.SetResourceReference(BackgroundProperty,poker?"UiPanel":"UiAccent");cupsTab.SetResourceReference(ForegroundProperty,poker?"UiText":"UiOnAccent");
         pokerTab.SetResourceReference(BackgroundProperty,poker?"UiAccent":"UiPanel");pokerTab.SetResourceReference(ForegroundProperty,poker?"UiOnAccent":"UiText");
-        status.Text = poker ? "Póker de exhibición: mira tu mano, cambia hasta tres cartas y descubre la jugada preparada de BAEL." : "Mira cómo BAEL mezcla los vasos y elige uno. La pelota siempre acabará en otro: el truco está anunciado.";
+        status.Text = poker ? "Mira tu mano, cambia hasta tres cartas y revela la jugada." : "Mira la mezcla y elige un vaso al terminar.";
         draw.Visibility = poker ? Visibility.Visible : Visibility.Collapsed;
         UpdateControls();
     }
@@ -94,11 +95,11 @@ public sealed class GameWindow : Window
     }
     private async Task StartRound()
     {
-        if (!session.Begin(stake.SelectedItem is int n ? n : 50)) { status.Text = "Elige una apuesta que quepa en tu saldo ficticio."; return; }
+        if (!session.Begin(stake.SelectedItem is int n ? n : 50)) { status.Text = "Elige una cantidad que quepa en tu saldo."; return; }
         result.Text = ""; table.Children.Clear(); picks.Clear();
         if (poker) { session.DealPoker(); ShowCards(false); UpdateControls(); return; }
         busy = true; UpdateControls();
-        status.Text = "Mezclando… Sigue los vasos con la vista. ¡El mago tiene el guion de su lado!";
+        status.Text = "Mezclando… ¡No me pierdas de vista!";
         var canvas = new Canvas { Width = 450, Height = 160, HorizontalAlignment = HorizontalAlignment.Center };
         table.Children.Add(canvas);
         var cups = new Button[3]; int[] positions = [0,1,2];
@@ -112,7 +113,7 @@ public sealed class GameWindow : Window
                 if (busy || !session.Active) return;
                 int ball = session.RevealCup(chosen);
                 for (int c=0;c<3;c++) { cups[c].IsEnabled = false; cups[c].Content = c==ball ? "●\n¡Aquí!" : "Vacío"; }
-                Announce($"Elegiste el vaso {chosen+1}; la pelota está en el {ball+1}. BAEL gana {session.Stake} fichas ficticias. El truco teatral mueve la pelota fuera de tu elección.");
+                Announce($"Elegiste el vaso {chosen+1}; la pelota está en el {ball+1}. Esta ronda es mía: {session.Stake} fichas.");
                 UpdateControls();
             };
         }
@@ -129,7 +130,7 @@ public sealed class GameWindow : Window
             }
             if(lifetime.IsCancellationRequested) return;
             busy=false; foreach(var cup in cups) cup.IsEnabled=true;
-            status.Text = "Elige un vaso. Recuerda: esta es la trampa teatral de BAEL.";
+            status.Text = "Listo. ¿Con qué vaso te quedas?";
             UpdateControls();
         }
         catch (OperationCanceledException) { }
@@ -162,14 +163,17 @@ public sealed class GameWindow : Window
         int[] selected = picks.Select((box,index)=>(box,index)).Where(x=>x.box.IsChecked==true).Select(x=>x.index).ToArray();
         if (selected.Length>3) { status.Text="Puedes cambiar un máximo de tres cartas."; return; }
         string hand = session.FinishPoker(selected); ShowCards(true);
-        Announce($"Tu mano: {hand}. BAEL revela una escalera real y gana {session.Stake} fichas ficticias. Era la victoria preparada del modo espectáculo.");
+        Announce($"Tu mano: {hand}. Mi escalera real se lleva {session.Stake} fichas.");
         UpdateControls();
     }
     private void Announce(string text)
     {
         status.Text="Ronda terminada · puedes empezar otra o elegir el otro juego.";
-        string[] taunts = ["¿Te atreves con otra ronda de fichas imaginarias?", "¡Mi cara de victoria venía incluida con el traje!", "Tienes valor para retar al unicornio. Eso ya merece aplausos."];
-        result.Text = text + (personality.Humor>0 ? "\n"+taunts[Random.Shared.Next(taunts.Length)] : "");
+        string[] taunts = personality.Humor>=2
+            ? ["Mi pose de campeón ya tenía ensayo.","Acepto aplausos; con uno dramático me basta.","El cuerno es de adorno. El estilo viene de fábrica.","Me salió redonda. Qué conveniente para mi ego."]
+            : ["Buen intento.","Esta me salió bien.","Me quedo con esta jugada.","Anotada la ronda."];
+        int choice;do { choice=Random.Shared.Next(taunts.Length); } while(choice==lastTaunt);lastTaunt=choice;
+        result.Text = text + (personality.Humor>0 ? "\n"+taunts[choice] : "");
         Comment?.Invoke(personality.FormatLocal(ChatMode.Gamer,result.Text));
     }
     internal async Task VerifyCupsAsync()

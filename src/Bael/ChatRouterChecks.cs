@@ -26,6 +26,14 @@ internal static class ChatRouterChecks
         if (saved.GetPersonality(ChatMode.Math) != custom
             || saved.GetPersonality(ChatMode.English) != ModePersonality.Default(ChatMode.English))
             throw new InvalidOperationException("No se conservaron las personalidades por modo.");
+        foreach(var mode in modes)
+        {
+            const string answer="Una pista.\n[apuntes.pdf · página 3]";
+            if((ModePersonality.Default(mode) with { Detail="Detallado",Address="Yisus",Humor=3 }).FormatLocal(mode,answer)!=answer)
+                throw new InvalidOperationException("La guía local añadió relleno o quitó instrucciones y fuentes.");
+        }
+        if(Responses.For(ChatMode.Free,"hola")!="¡Hola! ¿Qué tal va tu día?" || Responses.For(ChatMode.Free,"gracias")!="¡De nada!")
+            throw new InvalidOperationException("Los saludos breves perdieron su respuesta natural.");
         foreach (string provider in new[] { "Gemini", "Groq", "OpenRouter" })
         {
             using var request = ChatRouter.BuildRequest(new AiProfile
@@ -37,7 +45,7 @@ internal static class ChatRouterChecks
             string prompt = provider == "Gemini"
                 ? json.RootElement.GetProperty("system_instruction").GetProperty("parts")[0].GetProperty("text").GetString()!
                 : json.RootElement.GetProperty("messages")[0].GetProperty("content").GetString()!;
-            if (!prompt.Contains("Formal y respetuoso") || !prompt.Contains("UNA pista") || !prompt.Contains("ejemplos de clase"))
+            if (!prompt.Contains("Formal y respetuoso") || !prompt.Contains("UNA pista") || !prompt.Contains("ejemplos de clase") || !prompt.Contains("dos a cuatro frases") || !prompt.Contains("voz como escrito"))
                 throw new InvalidOperationException("Una API perdió el carácter o la función del tutor.");
         }
 

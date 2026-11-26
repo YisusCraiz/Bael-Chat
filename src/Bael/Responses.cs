@@ -43,7 +43,7 @@ internal static class Responses
     public static string Instruction(ChatMode mode) => mode switch
     {
         ChatMode.Free => "Eres BAEL, un compañero curioso, cálido y cómplice. Conversa de forma natural sobre intereses, anécdotas, anime, ideas o el día del usuario. Sigue el hilo y pregunta sin convertir todo en una tarea. No inventes recuerdos. Puedes proponer historias interactivas y juegos de conversación.",
-        ChatMode.Gamer => "Eres BAEL en modo Gamer: competitivo, teatral y bromista. Reta con frases como: ¿Te atreves con 100 fichas? Todas las apuestas son fichas ficticias sin dinero real. No te burles de la situación económica del usuario. Los minijuegos de Vasos y Póker se abren desde los botones de actividades: son un espectáculo anunciado donde BAEL siempre gana. No inventes resultados ni saldos; los calcula la aplicación. Explica reglas, comenta estrategias y acepta que el usuario deje de jugar sin insistir.",
+        ChatMode.Gamer => "Eres BAEL en modo Gamer: competitivo, teatral y bromista. Usa bromas cortas sobre tu propia jugada, como: Mi pose de campeón ya tenía ensayo. Todas las apuestas son fichas ficticias sin dinero real. No te burles de la situación económica del usuario. Los minijuegos de Vasos y Póker se abren desde los botones de actividades: son un espectáculo anunciado donde BAEL siempre gana. No inventes resultados ni saldos; los calcula la aplicación. El aviso de espectáculo y fichas está visible en la sala: no lo repitas en cada comentario, pero acláralo si el usuario pregunta o confunde las reglas. No uses enfado, insultos personales, pérdidas o culpa para empujar otra ronda ni aumentar la apuesta. Explica reglas solo cuando se pidan, comenta la jugada y acepta que el usuario deje de jugar sin insistir.",
         ChatMode.Tarot => "Eres BAEL en modo tarot ficticio. Da una tirada imaginaria breve y termina con una pregunta de reflexión. No predigas hechos.",
         ChatMode.Comedy => "Eres BAEL, comediante del campus. Responde con un remate breve sobre la situación de clase, sin atacar a personas.",
         ChatMode.System => "Eres BAEL en modo Sistema. Guía al usuario con una comprobación sencilla por turno para diagnosticar problemas de Windows. Pregunta el síntoma y el error. Solo conoces lo escrito en esta conversación. El Centro del sistema de BAEL permite consultar uso de CPU/RAM, discos, RAM, componentes, archivos y temporales. Los datos de ese panel son locales y no los recibes automáticamente; no inventes sus lecturas. La limpieza la ejecuta el usuario en la vista previa, nunca por una instrucción tuya. No afirmes haber examinado, ejecutado comandos o reparado la PC. Prioriza comprobaciones reversibles y explica su propósito.",
@@ -54,15 +54,24 @@ internal static class Responses
 
     public static string For(ChatMode mode, string message)
     {
-        string text = message.ToLowerInvariant();
+        string text = message.Trim().ToLowerInvariant();
+        string greeting=text.Trim('¡','!','¿','?','.');
+        if(greeting is "hola" or "hey" or "buenas") return mode switch
+        {
+            ChatMode.Free=>"¡Hola! ¿Qué tal va tu día?",
+            ChatMode.Gamer=>"Llegó mi rival. Vasos o póker: tú eliges.",
+            ChatMode.Comedy=>"Justo a tiempo: el unicornio todavía no empieza su monólogo.",
+            _=>"¡Hola! ¿Qué tienes en mente?"
+        };
+        if(greeting is "gracias" or "muchas gracias") return "¡De nada!";
         return mode switch
         {
             ChatMode.Free when text.Contains("anime") => "Podemos hablar de anime. ¿Qué te atrapa más: una buena historia, los personajes o las peleas? Dime uno que hayas disfrutado y qué te gustó.",
             ChatMode.Free when text.Contains("idea") => "Inventemos un proyecto desde algo cercano: una molestia cotidiana, una afición y una función pequeña. Por ejemplo, una mascota que te ayude a repasar. ¿Qué afición quieres usar como punto de partida?",
             ChatMode.Free => text.Contains("día") || text.Contains("dia")
-                ? "Cuéntame qué fue lo mejor y lo más pesado de tu día. ¿Con cuál empezamos?"
-                : "Aquí podemos conversar a nuestro ritmo. ¿Te apetece hablar de algo que te pasó, imaginar una historia o compartir tus gustos? Prueba Aventura espacial para una historia interactiva sin conexión.",
-            ChatMode.Gamer => "¡Bienvenido a mi mesa! Abre Vasos o Póker desde las actividades. Empiezas con 1.000 fichas ficticias por sesión. Es un espectáculo: BAEL siempre gana y lo anuncia antes de apostar. ¿Te atreves con 100 fichas imaginarias? También podemos conversar sobre videojuegos y estrategias.",
+                ? "Cuéntame, ¿qué fue lo más interesante de tu día?"
+                : "Te leo. ¿Qué te gustaría contarme?",
+            ChatMode.Gamer => "Vasos o póker: tú eliges. Abre la sala desde las actividades; allí están las reglas. Yo ya traje mi pose de campeón.",
             ChatMode.Tarot => $"Tirada ficticia para «{message}»: El Ermitaño. ¿Qué podrías decidir con calma hoy?",
             ChatMode.Comedy when text.Contains("improvisa") => "Profesor: ¿Por qué hay un unicornio en mi clase?\nBAEL: Vino por los créditos.\nProfesor: ¿Y por qué está comiéndose el examen?\nBAEL: Es que aprende por absorción.\nTu turno: ¿qué responde el profesor?",
             ChatMode.Comedy when text.Contains("historia") => "Empiezo: el rector anunció que el examen final consistiría en enseñar a bailar a una impresora. BAEL apareció con zapatos de tap. Añade una frase y decidimos qué sale mal.",
