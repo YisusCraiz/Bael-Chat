@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
 namespace Bael;
@@ -27,6 +28,9 @@ public partial class SystemWindow : Window
     {
         InitializeComponent();
         SettingsTheme.Apply(this,settings.UiTheme=="Oscuro");
+        var portrait=new BitmapImage(); portrait.BeginInit(); portrait.CacheOption=BitmapCacheOption.OnLoad;
+        portrait.UriSource=new Uri(Path.Combine(AppContext.BaseDirectory,"Sprites","desktop","system-0.png")); portrait.EndInit(); portrait.Freeze();
+        CoachAvatar.Source=DesktopWindow.WheelPortrait(portrait);
         Loaded+=(_,_)=> { RefreshVolumes(); Sample(); clock.Start(); };
         clock.Tick+=(_,_)=>Sample();
         Closed+=(_,_)=> { closed=true; clock.Stop(); operation?.Cancel(); };
@@ -34,6 +38,34 @@ public partial class SystemWindow : Window
         SearchRoot.Text=Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     }
     internal void SelectSection(int section) => Tabs.SelectedIndex=Math.Clamp(section,0,Tabs.Items.Count-1);
+    private void GoSection(object sender,RoutedEventArgs e)
+    {
+        if(sender is Button button && int.TryParse(button.Tag?.ToString(),out int section)) SelectSection(section);
+    }
+    private void SectionChanged(object sender,SelectionChangedEventArgs e)
+    {
+        if(CoachMessage is null || !ReferenceEquals(e.Source,Tabs)) return;
+        CoachMessage.Text=Tabs.SelectedIndex switch
+        {
+            1=>"Te explico lo que informa tu disco. Si faltan datos, también te lo diré.",
+            2=>"Veamos tu memoria y qué debes confirmar antes de comprar una ampliación.",
+            3=>"Elige una carpeta y dime qué archivo quieres encontrar.",
+            4=>"Primero miramos los temporales. Tú decides cuáles eliminar.",
+            5=>"Conoce tus componentes y las incidencias que Windows reporta.",
+            _=>"Empecemos por conocer tu equipo. Yo te guío paso a paso."
+        };
+    }
+    private void CleanupSelectionChanged(object sender,RoutedEventArgs e)
+    {
+        Dispatcher.BeginInvoke(new Action(UpdateCleanupSelection));
+    }
+    private void UpdateCleanupSelection()
+    {
+        if(closed || SelectionSummary is null) return;
+        var selected=cleaning.Where(f=>f.Selected).ToArray();
+        SelectionSummary.Text=$"{selected.Length:N0} seleccionados · hasta {SystemMetrics.Size(selected.Sum(f=>f.Bytes))} en tamaños de archivo";
+        CleanButton.IsEnabled=operation is null && selected.Length>0;
+    }
     private void Sample()
     {
         var value=metrics.Read();
@@ -70,7 +102,7 @@ public partial class SystemWindow : Window
         finally
         {
             operation=null;
-            if(!closed) { Tabs.IsEnabled=true; RefreshButton.IsEnabled=true; CancelButton.IsEnabled=false; CleanButton.IsEnabled=cleaning.Length>0; }
+            if(!closed) { Tabs.IsEnabled=true; RefreshButton.IsEnabled=true; CancelButton.IsEnabled=false; UpdateCleanupSelection(); }
         }
     }
     private void CancelWork(object sender,RoutedEventArgs e) => operation?.Cancel();
@@ -82,7 +114,10 @@ public partial class SystemWindow : Window
     });
     private void ShowInventory(SystemInventory data)
     {
-        inventory=data; ComputerName.Text=string.IsNullOrWhiteSpace(data.Computer)?"Modelo no disponible":data.Computer;
+        inventory=data;
+        InventorySummary.Text=$"{data.Disks.Length} discos físicos · {data.Ram.Length} módulos RAM · {data.Issues.Length} incidencias devueltas. Abre una sección para ver detalles y disponibilidad.";
+        RamSummary.Text=$"{data.Ram.Length} módulos devueltos por Windows. Abre el detalle para entender ubicaciones, velocidades y capacidad declarada; confirma compatibilidad con el fabricante.";
+        ComputerName.Text=string.IsNullOrWhiteSpace(data.Computer)?"Modelo no disponible":data.Computer;
         RamAdvice.Text=data.RamAdvice; RamModules.ItemsSource=data.Ram;
         DiskCards.ItemsSource=data.Disks; Parts.ItemsSource=data.Cpu.Concat(data.Board).Concat(data.Gpu).ToArray(); Issues.ItemsSource=data.Issues;
         DiskNotes.Text=(data.Disks.Length==0?"No se obtuvieron discos físicos. ":"")+string.Join("\n",data.Notes);
@@ -146,8 +181,8 @@ public partial class SystemWindow : Window
             WorkStatus.Text="Vista previa lista. Revisa la selección antes de limpiar.";
         });
     }
-    private void SelectAllCleanup(object sender,RoutedEventArgs e) { foreach(var file in cleaning) file.Selected=true; CleanFiles.Items.Refresh(); }
-    private void ClearCleanup(object sender,RoutedEventArgs e) { foreach(var file in cleaning) file.Selected=false; CleanFiles.Items.Refresh(); }
+    private void SelectAllCleanup(object sender,RoutedEventArgs e) { foreach(var file in cleaning) file.Selected=true; CleanFiles.Items.Refresh(); UpdateCleanupSelection(); }
+    private void ClearCleanup(object sender,RoutedEventArgs e) { foreach(var file in cleaning) file.Selected=false; CleanFiles.Items.Refresh(); UpdateCleanupSelection(); }
     private async void CleanSelected(object sender,RoutedEventArgs e)
     {
         CleanFiles.CommitEdit(DataGridEditingUnit.Cell,true); CleanFiles.CommitEdit(DataGridEditingUnit.Row,true);
@@ -169,6 +204,11 @@ public partial class SystemWindow : Window
             Disks=[new("Disco de prueba","SSD","NVMe",256L<<30,"Warning","OK",null,85,1000,1,0)],Cpu=[new("CPU de prueba","8 hilos","OK")],Issues=[new("Dispositivo de prueba",28)] });
         if(!RamAdvice.Text.Contains("Posibles") || !Recommendations.Text.Contains("copia de seguridad") || DiskCards.Items.Count!=1 || Parts.Items.Count!=1 || Issues.Items.Count!=1 || CleanButton.IsEnabled)
             throw new InvalidOperationException("El centro de sistema perdió datos, límites o recomendaciones.");
+        SelectSection(1); if(!CoachMessage.Text.Contains("disco")) throw new InvalidOperationException("La guía no sigue la sección de discos.");
+        cleaning=[new DiskFile(Path.Combine(temporaryRoot,"bael-ui-fixture.tmp"),4096,DateTime.UtcNow)];
+        UpdateCleanupSelection(); if(!CleanButton.IsEnabled || !SelectionSummary.Text.Contains("1 seleccionados")) throw new InvalidOperationException("No se muestra la selección de limpieza.");
+        ClearCleanup(this,new RoutedEventArgs()); if(CleanButton.IsEnabled) throw new InvalidOperationException("La limpieza debe desactivarse sin selección.");
+        cleaning=[]; UpdateCleanupSelection();
         SelectSection(4); if(Tabs.SelectedIndex!=4) throw new InvalidOperationException("No abrió la limpieza integrada.");
     }
 }
