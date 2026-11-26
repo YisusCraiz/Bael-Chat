@@ -288,3 +288,12 @@ El aula usa navegación lateral por pasos (Mi ruta, Escribir, Leer conmigo, Escu
 Escritura presenta una consigna en español, la original en inglés y una frase de apoyo desplegables. El editor muestra un contador de palabras; Revisar mi texto permanece accesible al pie del editor. Las propuestas aparecen como tarjetas con Escribiste, Puedes usar, una explicación y Usar esta corrección. El detalle técnico de la fuente queda desplegable. Deshacer permite revertir la edición y se comprueba que no se reemplacen fragmentos de una revisión desactualizada. Al aplicar una propuesta se conservan las otras sugerencias de IA si sus fragmentos siguen siendo únicos en el texto actualizado.
 
 Lectura enumera los tres pasos de escuchar, grabar y ver las palabras. Escucha indica cuándo se habilitan las preguntas y las presenta en tarjetas con una respuesta por lista. Conversación distingue los mensajes de BAEL y del alumno mediante burbujas. Se conservan los niveles, los contenidos, los límites de la evaluación por transcripción y el guardado local.
+
+
+### Identidad visual y guía de BAEL
+
+El aula muestra el sprite existente de BAEL en modo Inglés, sin sustituir el arte del personaje. La cabecera presenta una indicación corta según la actividad, y el inicio destaca una misión y una sola acción principal para continuar. Cuatro colores y símbolos distinguen escritura, lectura, escucha y conversación; la navegación lateral puede desplazarse en pantallas bajas.
+
+Mi misión muestra las cuatro prácticas del tema como pasos accesibles y marca las realizadas, sin inventar puntos, rachas o certificaciones. Las tarjetas de actividad permiten explorar, mientras el botón principal indica la siguiente práctica pendiente. Las pistas, reglas del avance y datos del guardado se despliegan cuando se necesitan. Un error de guardado abre automáticamente su detalle.
+
+Escritura mantiene una acción principal visible y presenta la revisión con IA como ayuda adicional desplegable. Las tarjetas comparan Escribiste → Puedes usar en dos columnas y explican cada propuesta. Lectura, preguntas y conversación conservan su contenido y evaluaciones anteriores. El rediseño cambia la presentación y reutiliza el progreso ya guardado.

@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
 namespace Bael;
@@ -27,6 +28,9 @@ public partial class EnglishWindow : Window
     {
         this.settings=settings; this.store=store??new EnglishStore();
         InitializeComponent(); SettingsTheme.Apply(this,settings.UiTheme=="Oscuro");
+        var portrait=new BitmapImage(); portrait.BeginInit(); portrait.CacheOption=BitmapCacheOption.OnLoad;
+        portrait.UriSource=new Uri(Path.Combine(AppContext.BaseDirectory,"Sprites","desktop","english-0.png")); portrait.EndInit(); portrait.Freeze();
+        CoachAvatar.Source=DesktopWindow.WheelPortrait(portrait);
         LevelChoice.ItemsSource=EnglishCourse.Levels; VoiceChoice.ItemsSource=new[] { "Windows local","ElevenLabs" };
         lesson=EnglishCourse.Get(this.store.Data.Lesson);
         LevelChoice.SelectedItem=lesson.Level; LessonChoice.ItemsSource=EnglishCourse.Lessons.Where(l=>l.Level==lesson.Level).ToArray(); LessonChoice.SelectedItem=lesson;
@@ -103,7 +107,7 @@ public partial class EnglishWindow : Window
         draft.Writing=WritingEditor.Text; draft.Reading=ReadingInput.Text; draft.ConversationInput=ConversationInput.Text;
         draft.ListeningAnswers=Answers(); draft.TextSupport=TextSupport.IsChecked==true;
         store.Data.Voice=VoiceChoice.SelectedItem as string??"Windows local"; store.Data.CloudConversation=CloudConversation.IsChecked==true;
-        store.Save(); SaveStatus.Text=store.Error.Length>0?store.Error:"Progreso y borradores guardados localmente, cifrados para tu usuario de Windows. El audio grabado no se guarda.";
+        store.Save(); StorageDetails.IsExpanded=store.Error.Length>0; SaveStatus.Text=store.Error.Length>0?store.Error:"Progreso y borradores guardados localmente, cifrados para tu usuario de Windows. El audio grabado no se guarda.";
     }
     private void AddAttempt(string skill,int? score,string input,string feedback,string source)
     { store.Add(lesson,skill,score,input,feedback,source); RefreshProgress(); SaveDraft(); }
@@ -115,12 +119,37 @@ public partial class EnglishWindow : Window
         LevelProgressText.Text=$"Tu avance: {done} de 8 prácticas";
         int pending=Array.FindIndex(EnglishCourse.Skills,skill=>!store.Data.Completed(lesson,skill));
         ContinueButton.Content=pending<0?"Siguiente tema →":"Seguir: "+new[] { "escritura","lectura","escucha","conversación" }[pending]+" →";
+        MissionStart.Content=pending<0?"Vamos al siguiente tema →":pending==0?"Empezar a escribir →":"Continuar con "+new[] { "escritura","lectura","escucha","conversación" }[pending]+" →";
+        SkillTrail.ItemsSource=EnglishCourse.Skills.Select((skill,index)=>new { Index=index+1,Label=(store.Data.Completed(lesson,skill)?"✓ ":$"{index+1}. ")+skill,
+            Background=store.Data.Completed(lesson,skill)?"#DDF6E7":"#F0ECFA",Foreground=store.Data.Completed(lesson,skill)?"#175E40":"#625779" }).ToArray();
+        UpdateCoach();
         History.ItemsSource=store.Data.Attempts.AsEnumerable().Reverse().ToArray();
     }
     private void GoPractice(object sender,RoutedEventArgs e)
-    { if(sender is FrameworkElement item && int.TryParse(item.Tag as string,out int section)) SelectSection(section); }
+    { if(sender is FrameworkElement item && int.TryParse(Convert.ToString(item.Tag),out int section)) SelectSection(section); }
+    private void SectionChanged(object sender,SelectionChangedEventArgs e)
+    { if(!loading && ReferenceEquals(e.Source,Tabs)) UpdateCoach(); }
+    private void UpdateCoach()
+    {
+        ContinueButton.Visibility=Tabs.SelectedIndex==0?Visibility.Collapsed:Visibility.Visible;
+        CoachMessage.Text=Tabs.SelectedIndex switch
+        {
+            1 when hasReviewed && WritingIssues.Items.Count>0=>$"Encontré {WritingIssues.Items.Count} propuestas. Mira el antes y el después; tú eliges qué cambiar.",
+            1 when hasReviewed=>"Buen avance. Vuelve a leer tus frases y comprueba que expresen tu idea.",
+            1=>"Primero escribe tus ideas. Cuando termines, pulsa Revisar mis frases. Sin prisa.",
+            2=>"Escucha el ejemplo, lee y revisa las palabras. No hace falta correr.",
+            3 when store.Data.Draft(lesson.Id).Listened=>"Ya escuchaste el relato. Ahora elige tus respuestas y veamos qué comprendiste.",
+            3=>"Escucha un relato de 50 palabras. Después te haré tres preguntas.",
+            4=>"Imagina la situación y contéstame. Puedes escribir o usar tu voz.",
+            5=>"Cada intento te muestra qué repasar. Aquí tienes lo que has practicado.",
+            _=>"Hoy practicamos: "+lesson.Title+". Yo te acompaño; tú das el siguiente paso."
+        };
+    }
+
     private void RefreshWritingState()
     {
+        UpdateCoach();
+        CoachMiniSymbol.Text=hasReviewed?"✓":"Aa";
         WritingCounter.Text=$"{EnglishCourse.WordCount(WritingEditor.Text)} palabras · tu borrador se guarda al pausar";
         UndoCorrection.IsEnabled=correctionUndo.TryPeek(out var change) && WritingEditor.Text==change.After;
         int count=WritingIssues.Items.Count;
@@ -284,6 +313,7 @@ public partial class EnglishWindow : Window
         bool support=TextSupport.IsChecked==true; ListeningPassage.Visibility=support?Visibility.Visible:Visibility.Collapsed;
         bool ready=store.Data.Draft(lesson.Id).Listened || support;
         QuestionsPanel.IsEnabled=ready; GradeListeningButton.IsEnabled=ready;
+        if(!loading) UpdateCoach();
         ListeningState.Text=!ready?"Paso 1 · Escucha el relato para abrir las preguntas.":store.Data.Draft(lesson.Id).SeenTranscript?"Práctica con apoyo de texto · elige tus respuestas y revisa la explicación.":"Paso 2 · Elige una respuesta en cada tarjeta y pulsa Revisar mis respuestas.";
     }
     private void NewListening(object sender,RoutedEventArgs e)

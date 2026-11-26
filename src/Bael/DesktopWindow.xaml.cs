@@ -448,7 +448,7 @@ public partial class DesktopWindow : Window
         BubbleText.Text = bubbleReply[..bubbleCharacters];
     }
 
-    private static BitmapSource WheelPortrait(BitmapSource source)
+    internal static BitmapSource WheelPortrait(BitmapSource source)
     {
         var rgba = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
         int stride = rgba.PixelWidth * 4;
