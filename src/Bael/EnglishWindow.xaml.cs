@@ -27,7 +27,7 @@ public partial class EnglishWindow : Window
     internal EnglishWindow(BaelSettings settings,EnglishStore? store=null)
     {
         this.settings=settings; this.store=store??new EnglishStore();
-        InitializeComponent(); SettingsTheme.Apply(this,settings.UiTheme=="Oscuro");
+        InitializeComponent(); AutoReadConversation.IsChecked=settings.SpeakTextReplies; SettingsTheme.Apply(this,settings.UiTheme=="Oscuro");
         var portrait=new BitmapImage(); portrait.BeginInit(); portrait.CacheOption=BitmapCacheOption.OnLoad;
         portrait.UriSource=new Uri(Path.Combine(AppContext.BaseDirectory,"Sprites","desktop","english-0.png")); portrait.EndInit(); portrait.Freeze();
         CoachAvatar.Source=DesktopWindow.WheelPortrait(portrait);
@@ -343,6 +343,7 @@ public partial class EnglishWindow : Window
         string text=ConversationInput.Text.Trim(); if(text.Length==0) return;
         await Run("Practicando la conversación…",async token=>
         {
+            bool usedAi=false;
             var draft=store.Data.Draft(lesson.Id); var history=draft.Conversation.SkipWhile(t=>t.Role!="user").TakeLast(12).ToArray(); int previous=draft.Step;
             bool accepted=previous<3 && EnglishPractice.MeetsStep(lesson.Steps[previous],text);
             if(accepted) draft.Step++;
@@ -357,12 +358,20 @@ public partial class EnglishWindow : Window
                 string prompt="Práctica de conversación en inglés, nivel "+lesson.Level+", escenario "+lesson.Title+". El alumno dijo (JSON): "+JsonSerializer.Serialize(text)+". Contesta naturalmente en inglés, hasta 70 palabras, y añade una corrección breve en español solo si hace falta. No finjas evaluar pronunciación con texto. Si corresponde, pregunta lo siguiente: "+(draft.Step<3?lesson.Steps[draft.Step].Prompt:"Continúa este mismo escenario con una pregunta pertinente.");
                 var result=await router.ReplyAsync(settings,ChatMode.English,prompt,history,token);
                 token.ThrowIfCancellationRequested(); if(closed) return;
-                if(!string.IsNullOrWhiteSpace(result.Text)) draft.Conversation[^1]=new("model",MemoryData.Clip(result.Text,1300));
+                if(!string.IsNullOrWhiteSpace(result.Text)) { draft.Conversation[^1]=new("model",MemoryData.Clip(result.Text,1300)); usedAi=true; }
+                ConversationFeedback.Text+=(usedAi?" Respuesta generada con IA.":" El proveedor no respondió; se muestra la guía local.");
                 WorkStatus.Text=result.Status;
             }
             else WorkStatus.Text=CloudConversation.IsChecked==true?"IA en línea desactivada; se usó el escenario local.":"Turno local guardado.";
             if(closed) return; DisplayDialogue(); SaveDraft();
-            AddAttempt("Turno de conversación",null,text,draft.Conversation[^1].Text,CloudConversation.IsChecked==true && settings.OnlineChat?"Escenario + proveedor configurado":"Guía local");
+            AddAttempt("Turno de conversación",null,text,draft.Conversation[^1].Text,usedAi?"Respuesta con IA":"Guía local");
+            if(AutoReadConversation.IsChecked==true)
+            {
+                string responseStatus=WorkStatus.Text;
+                WorkStatus.Text="Leyendo la respuesta con "+Engine+"…";
+                await audio.SpeakAsync(settings,draft.Conversation[^1].Text,Engine,lesson.Level,token);
+                if(!closed) WorkStatus.Text=responseStatus+" · lectura terminada";
+            }
         });
     }
     private async void PlayConversation(object sender,RoutedEventArgs e)

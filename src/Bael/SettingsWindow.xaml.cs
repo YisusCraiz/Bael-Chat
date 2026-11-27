@@ -105,6 +105,7 @@ public partial class SettingsWindow : Window
         VoiceModel.ItemsSource = ElevenLabsVoice.Models;
         VoiceModel.Text = settings.VoiceModel;
         SpeechModel.Text = settings.SpeechModel;
+        SpeakTextReplies.IsChecked = settings.SpeakTextReplies;
         SpeakVoiceReplies.IsChecked = settings.SpeakVoiceReplies;
         Closed += (_, _) =>
         {
@@ -685,6 +686,7 @@ public partial class SettingsWindow : Window
             VoiceKey = VoiceKey.Password.Trim(),
             VoiceId = VoiceId.Text.Trim(),
             SpeechModel = string.IsNullOrWhiteSpace(SpeechModel.Text) ? "scribe_v2" : SpeechModel.Text.Trim(),
+            SpeakTextReplies = SpeakTextReplies.IsChecked == true,
             SpeakVoiceReplies = SpeakVoiceReplies.IsChecked == true,
             InputDeviceId = InputDevice.SelectedValue as string ?? Settings.InputDeviceId,
             OutputDeviceId = OutputDevice.SelectedValue as string ?? Settings.OutputDeviceId

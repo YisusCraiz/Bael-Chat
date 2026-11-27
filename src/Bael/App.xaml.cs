@@ -37,6 +37,8 @@ public partial class App : Application
                 await window.VerifySpontaneousAsync();
                 await window.VerifyCommandsAsync();
                 await window.VerifyModeActivitiesAsync();
+                await window.VerifyAutoReadAsync();
+                await window.VerifyComedyApiAsync();
                 File.AppendAllText(resultPath,"\nAbriendo Centro del sistema");
                 window.VerifySystemPanelAccess();
                 window.VerifyEnglishPanelAccess();

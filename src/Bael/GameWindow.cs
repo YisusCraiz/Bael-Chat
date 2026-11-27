@@ -5,6 +5,9 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.IO;
+using ShapePath=System.Windows.Shapes.Path;
+using Ellipse=System.Windows.Shapes.Ellipse;
+using System.Windows.Media.Effects;
 
 namespace Bael;
 
@@ -57,8 +60,9 @@ public sealed class GameWindow : Window
         start.Click += async (_, _) => await StartRound();
         var controlCard=new Border { CornerRadius=new CornerRadius(14),Padding=new Thickness(14),Child=controls };controlCard.SetResourceReference(BackgroundProperty,"UiPanel");root.Children.Add(controlCard);
         status.TextWrapping = TextWrapping.Wrap; status.Margin = new Thickness(0,12,0,10);status.FontWeight=FontWeights.SemiBold;System.Windows.Automation.AutomationProperties.SetLiveSetting(status,System.Windows.Automation.AutomationLiveSetting.Polite); root.Children.Add(status);
-        table.MinHeight = 150;
-        var playCard=new Border { CornerRadius=new CornerRadius(16),Padding=new Thickness(14),Child=table };playCard.SetResourceReference(BackgroundProperty,"UiInset");root.Children.Add(playCard);
+        table.MinHeight = 170;
+        table.SetValue(System.Windows.Documents.TextElement.ForegroundProperty,Brushes.White);
+        var playCard=new Border { CornerRadius=new CornerRadius(22),Padding=new Thickness(18),BorderThickness=new Thickness(2),BorderBrush=new SolidColorBrush(Color.FromRgb(168,139,79)),Background=new LinearGradientBrush(Color.FromRgb(22,79,77),Color.FromRgb(20,39,58),45),Child=table };root.Children.Add(playCard);
         selection.Margin=new Thickness(0,10,0,6);selection.TextWrapping=TextWrapping.Wrap;root.Children.Add(selection);
         draw.Click += (_, _) => FinishPoker(); root.Children.Add(draw);
         result.TextWrapping = TextWrapping.Wrap; result.FontSize = 15; result.Margin = new Thickness(0,12,0,12); root.Children.Add(result);
@@ -100,19 +104,21 @@ public sealed class GameWindow : Window
         if (poker) { session.DealPoker(); ShowCards(false); UpdateControls(); return; }
         busy = true; UpdateControls();
         status.Text = "Mezclando… ¡No me pierdas de vista!";
-        var canvas = new Canvas { Width = 450, Height = 160, HorizontalAlignment = HorizontalAlignment.Center };
+        var canvas = new Canvas { Width = 450, Height = 185, HorizontalAlignment = HorizontalAlignment.Center };
         table.Children.Add(canvas);
         var cups = new Button[3]; int[] positions = [0,1,2];
         for (int i=0;i<3;i++)
         {
             int chosen = i;
-            var cup = new Button { Content = $"▰\nVaso {i+1}", FontSize = 23, Width = 120, Height = 110, IsEnabled = false, RenderTransform = new TranslateTransform() };
+            var cup = new Button { Content = CupFace(i+1,false,false), Width = 126, Height = 154,Padding=new Thickness(0),Margin=new Thickness(0),Background=Brushes.Transparent,BorderBrush=Brushes.Transparent, IsEnabled = false, RenderTransform = new TranslateTransform(),ToolTip=$"Elegir vaso {i+1}" };
+            var template=new ControlTemplate(typeof(Button));var presenter=new FrameworkElementFactory(typeof(ContentPresenter));presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty,HorizontalAlignment.Center);template.VisualTree=presenter;cup.Template=template;
+            cup.MouseEnter+=(_,_)=> { if(cup.IsEnabled) cup.Opacity=0.88; };cup.MouseLeave+=(_,_)=>cup.Opacity=1;
             Canvas.SetLeft(cup, i*150); Canvas.SetTop(cup,20); canvas.Children.Add(cup); cups[i] = cup;
             cup.Click += (_, _) =>
             {
                 if (busy || !session.Active) return;
                 int ball = session.RevealCup(chosen);
-                for (int c=0;c<3;c++) { cups[c].IsEnabled = false; cups[c].Content = c==ball ? "●\n¡Aquí!" : "Vacío"; }
+                for (int c=0;c<3;c++) { cups[c].IsEnabled = false; cups[c].Opacity=1; cups[c].Content = CupFace(c+1,c==ball,true); }
                 Announce($"Elegiste el vaso {chosen+1}; la pelota está en el {ball+1}. Esta ronda es mía: {session.Stake} fichas.");
                 UpdateControls();
             };
@@ -125,8 +131,9 @@ public sealed class GameWindow : Window
                 (positions[a],positions[b])=(positions[b],positions[a]);
                 for (int i=0;i<3;i++)
                     ((TranslateTransform)cups[i].RenderTransform).BeginAnimation(TranslateTransform.XProperty,
-                        new DoubleAnimation((positions[i]-i)*150, TimeSpan.FromMilliseconds(260)));
-                await Task.Delay(290, lifetime.Token);
+                        new DoubleAnimation((positions[i]-i)*150, TimeSpan.FromMilliseconds(280)) { EasingFunction=new QuadraticEase { EasingMode=EasingMode.EaseInOut } });
+                foreach(int moving in new[]{a,b}) ((TranslateTransform)cups[moving].RenderTransform).BeginAnimation(TranslateTransform.YProperty,new DoubleAnimation(0,-12,TimeSpan.FromMilliseconds(140)) { AutoReverse=true,EasingFunction=new SineEase() });
+                await Task.Delay(310, lifetime.Token);
             }
             if(lifetime.IsCancellationRequested) return;
             busy=false; foreach(var cup in cups) cup.IsEnabled=true;
@@ -135,6 +142,54 @@ public sealed class GameWindow : Window
         }
         catch (OperationCanceledException) { }
     }
+    private static FrameworkElement CupFace(int number,bool ball,bool reveal)
+    {
+        var root=new Grid { Width=118,Height=152 };
+        root.Children.Add(new Ellipse { Width=104,Height=17,Fill=new SolidColorBrush(Color.FromArgb(90,0,0,0)),VerticalAlignment=VerticalAlignment.Bottom,Margin=new Thickness(0,0,0,15) });
+        if(reveal)
+        {
+            var bottom=new StackPanel { VerticalAlignment=VerticalAlignment.Bottom,HorizontalAlignment=HorizontalAlignment.Center };
+            if(ball) bottom.Children.Add(new Ellipse { Width=26,Height=26,Fill=new RadialGradientBrush(Colors.White,Colors.Gold),Effect=new DropShadowEffect { Color=Colors.Gold,BlurRadius=15,ShadowDepth=0,Opacity=0.6 } });
+            bottom.Children.Add(new TextBlock { Text=ball?"¡Aquí!":"Vacío",Foreground=Brushes.White,FontWeight=FontWeights.Bold,HorizontalAlignment=HorizontalAlignment.Center,Margin=new Thickness(0,4,0,0) });
+            root.Children.Add(bottom);
+        }
+        var body=new Canvas { Width=118,Height=122,VerticalAlignment=VerticalAlignment.Top,RenderTransform=new TranslateTransform() };
+        body.Children.Add(new ShapePath { Data=Geometry.Parse("M 29,16 Q 59,5 89,16 L 108,104 Q 59,121 10,104 Z"),Fill=new LinearGradientBrush(Color.FromRgb(160,112,244),Color.FromRgb(73,32,146),0),Stroke=new SolidColorBrush(Color.FromRgb(221,193,255)),StrokeThickness=2,Effect=new DropShadowEffect { BlurRadius=12,ShadowDepth=5,Opacity=0.35 } });
+        var shine=new ShapePath { Data=Geometry.Parse("M 34,25 L 27,98"),Stroke=new SolidColorBrush(Color.FromArgb(100,255,255,255)),StrokeThickness=5 };body.Children.Add(shine);
+        var top=new Ellipse { Width=60,Height=15,Fill=new SolidColorBrush(Color.FromRgb(82,40,146)),Stroke=Brushes.Lavender,StrokeThickness=2 };Canvas.SetLeft(top,29);Canvas.SetTop(top,9);body.Children.Add(top);
+        var star=new TextBlock { Text="★",FontSize=33,Foreground=Brushes.LemonChiffon };Canvas.SetLeft(star,43);Canvas.SetTop(star,39);body.Children.Add(star);
+        var badge=new Border { Width=29,Height=29,Background=Brushes.White,CornerRadius=new CornerRadius(15),Child=new TextBlock { Text=number.ToString(),Foreground=Brushes.Indigo,FontWeight=FontWeights.Bold,FontSize=17,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center } };Canvas.SetLeft(badge,44);Canvas.SetTop(badge,85);body.Children.Add(badge);
+        root.Children.Add(body);
+        if(reveal) ((TranslateTransform)body.RenderTransform).BeginAnimation(TranslateTransform.YProperty,new DoubleAnimation(0,-32,TimeSpan.FromMilliseconds(420)) { EasingFunction=new BackEase { Amplitude=0.3,EasingMode=EasingMode.EaseOut } });
+        return root;
+    }
+    private static Border CardFace(PlayingCard? card,bool reveal,int order)
+    {
+        bool red=card?.Suit is "♥" or "♦";Brush ink=red?Brushes.Crimson:Brushes.MidnightBlue;
+        var details=new Grid();
+        if(card is null)
+        {
+            details.Children.Add(new TextBlock { Text="✦",FontSize=46,Foreground=Brushes.LemonChiffon,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center });
+        }
+        else
+        {
+            details.Children.Add(new TextBlock { Text=card.Label,FontSize=17,Foreground=ink,FontWeight=FontWeights.Bold,Margin=new Thickness(5),HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Top });
+            details.Children.Add(new TextBlock { Text=card.Suit,FontSize=42,Foreground=ink,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center });
+            details.Children.Add(new TextBlock { Text=card.Label,FontSize=17,Foreground=ink,FontWeight=FontWeights.Bold,Margin=new Thickness(5),HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Bottom });
+        }
+        var transforms=new TransformGroup();var flip=new ScaleTransform();var slide=new TranslateTransform();transforms.Children.Add(flip);transforms.Children.Add(slide);
+        var face=new Border { Width=82,Height=120,CornerRadius=new CornerRadius(11),Background=card is null?new LinearGradientBrush(Colors.Indigo,Colors.MediumPurple,45):new SolidColorBrush(Color.FromRgb(255,252,246)),BorderBrush=Brushes.Lavender,BorderThickness=new Thickness(1),Child=details,RenderTransformOrigin=new Point(.5,.5),RenderTransform=transforms,Effect=new DropShadowEffect { BlurRadius=9,ShadowDepth=4,Opacity=0.3 } };
+        var delay=TimeSpan.FromMilliseconds(order*75);
+        slide.BeginAnimation(TranslateTransform.YProperty,new DoubleAnimation(35,0,TimeSpan.FromMilliseconds(350)) { BeginTime=delay,EasingFunction=new CubicEase { EasingMode=EasingMode.EaseOut } });
+        face.BeginAnimation(OpacityProperty,new DoubleAnimation(0,1,TimeSpan.FromMilliseconds(280)) { BeginTime=delay });
+        if(reveal) flip.BeginAnimation(ScaleTransform.ScaleXProperty,new DoubleAnimation(0.06,1,TimeSpan.FromMilliseconds(420)) { BeginTime=delay,EasingFunction=new SineEase { EasingMode=EasingMode.EaseOut } });
+        return face;
+    }
+    private static void HighlightCard(Border face,bool chosen)
+    {
+        face.BorderBrush=chosen?Brushes.Gold:Brushes.Lavender;face.BorderThickness=new Thickness(chosen?3:1);
+        if(face.RenderTransform is TransformGroup group && group.Children[1] is TranslateTransform slide) slide.BeginAnimation(TranslateTransform.YProperty,new DoubleAnimation(chosen?-9:0,TimeSpan.FromMilliseconds(130)));
+    }
     private void ShowCards(bool reveal)
     {
         table.Children.Clear(); picks.Clear();
@@ -142,12 +197,15 @@ public sealed class GameWindow : Window
         var hand = new WrapPanel(); table.Children.Add(hand);
         foreach (var card in session.Hand)
         {
-            var face = new Border { Background=Brushes.White,BorderBrush=Brushes.Lavender,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(10),Padding=new Thickness(10),MinWidth=60,Height=86,Child=new TextBlock { Text=card.Label,FontSize=26,VerticalAlignment=VerticalAlignment.Center,HorizontalAlignment=HorizontalAlignment.Center,Foreground=card.Suit is "♥" or "♦"?Brushes.Crimson:Brushes.DarkSlateBlue } };
-            var pick = new CheckBox { Content = face, Margin = new Thickness(5), IsEnabled = !reveal, ToolTip = "Marca para cambiar esta carta (máximo tres)" };
-            pick.Checked+=(_,_)=>UpdatePokerSelection();pick.Unchecked+=(_,_)=>UpdatePokerSelection();
+            var face = CardFace(card,reveal,picks.Count);
+            var pick = new CheckBox { Content = face, Margin = new Thickness(4,10,4,10), IsEnabled = !reveal, ToolTip = "Marca para cambiar esta carta (máximo tres)" };
+            pick.Checked+=(_,_)=> { HighlightCard(face,true);UpdatePokerSelection(); };pick.Unchecked+=(_,_)=> { HighlightCard(face,false);UpdatePokerSelection(); };
             hand.Children.Add(pick); picks.Add(pick);
         }
-        table.Children.Add(new TextBlock { Text = reveal ? "BAEL: " + string.Join("  ",GameSession.House.Select(c=>c.Label)) + " · Escalera real" : "BAEL: ▣  ▣  ▣  ▣  ▣ · Mano preparada de exhibición", FontSize=17, Margin=new Thickness(0,14,0,0), TextWrapping=TextWrapping.Wrap });
+        table.Children.Add(new TextBlock { Text=reveal?"BAEL · Escalera real":"BAEL · cartas reservadas",FontSize=16,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,18,0,5) });
+        var house=new WrapPanel();int order=0;
+        foreach(var card in GameSession.House) { var face=CardFace(reveal?card:null,reveal,order++);face.Margin=new Thickness(4,8,4,8);house.Children.Add(face); }
+        table.Children.Add(house);
         status.Text = reveal ? "Ronda terminada. Puedes empezar otra o volver al escritorio." : "Marca hasta tres cartas y pulsa Cambiar y revelar. Puedes conservarlas todas.";
     }
     private void UpdatePokerSelection()

@@ -7,7 +7,7 @@ using System.Windows.Media.Imaging;
 
 namespace Bael;
 
-internal sealed record ModeOffer(string Title,string Benefit,string Steps,string Example,string Action,bool Local,bool Draft=false);
+internal sealed record ModeOffer(string Title,string Benefit,string Steps,string Example,string Action,bool Local,bool Draft=false,bool Fallback=false);
 internal sealed record ModeGuide(string Title,string Welcome,string Purpose,string Accent,ModeOffer[] Offers)
 {
     internal static bool Supports(ChatMode mode)=>mode is ChatMode.Math or ChatMode.Free or ChatMode.Comedy or ChatMode.Tarot or ChatMode.Gamer;
@@ -23,9 +23,9 @@ internal sealed record ModeGuide(string Title,string Welcome,string Purpose,stri
          new("Aventura espacial","Elige el rumbo de una historia corta con BAEL.","1 · Elige cráter o señal.\n2 · Decide si tocas o cantas.\n3 · Descubre tu final. Puedes volver a empezar.","Dos decisiones, una luna violeta y un unicornio con casco.","Aventura espacial",true),
          new("Anime y gustos","Conversa sobre lo que te gusta y descubre puntos en común.","1 · Escribe una serie, juego o afición.\n2 · Cuenta qué te gusta de ella.\n3 · Haz una pregunta para seguir conversando.","Mi anime favorito es… Me gusta porque… ¿Qué opinas?","Quiero hablar de: ",false,true),
          new("Taller de ideas","Convierte una idea inicial en un primer paso concreto.","1 · Cuenta qué quieres crear.\n2 · Elige qué lo hará especial.\n3 · Define una acción pequeña para comenzar.","Una dinámica local para ordenar tus propias ideas.","Taller de ideas",true)]),
-        ChatMode.Comedy=>new("Una pausa para reírnos.","Yo pongo el escenario. Tú puedes empeorarlo, fufufu~.","Chistes del campus, escenas improvisadas y una historia por turnos. Las cuatro actividades funcionan localmente; para bromear sobre un tema libre puedes usar la conversación con API.","#9A5A08",
-        [new("Un chiste del campus","Una broma breve para despejarte.","1 · Pulsa empezar.\n2 · Lee o escucha el chiste con los controles del chat.\n3 · Pide otro cuando quieras.","El repertorio evita repetir el último chiste seguido.","Chiste aleatorio",true),
-         new("Otro chiste","Sigue el recreo con otra ocurrencia del repertorio.","1 · Recibe otra broma.\n2 · Prueba el resto de actividades para participar tú también.","Código, tareas y un unicornio con poco sentido común.","Chiste aleatorio",true),
+        ChatMode.Comedy=>new("Una pausa para reírnos.","Yo pongo el escenario. Tú puedes empeorarlo, fufufu~.","Chistes del campus, escenas improvisadas y una historia por turnos. Los chistes usan tu API cuando está activa y tienen repertorio local de respaldo. Las escenas y las historias por turnos son locales.","#9A5A08",
+        [new("Un chiste del campus","Una broma breve para despejarte.","1 · Pulsa empezar.\n2 · Lee o escucha el chiste con los controles del chat.\n3 · Pide otro cuando quieras.","Con IA activa se pide un chiste nuevo usando el tema de la conversación. Sin conexión se usa el repertorio local.","Chiste aleatorio",false,Fallback:true),
+         new("Otro chiste","Sigue el recreo con otra ocurrencia del repertorio.","1 · Recibe otra broma.\n2 · Prueba el resto de actividades para participar tú también.","Con IA activa se evita repetir los chistes del historial; sin conexión se usa otro del repertorio local.","Chiste aleatorio",false,Fallback:true),
          new("Escena improvisada","Responde como el profesor en una escena de tres turnos.","1 · BAEL plantea el problema.\n2 · Escribe tu respuesta como profesor.\n3 · Continúa hasta cerrar la escena.","Un unicornio entra en clase alegando que es alumno de intercambio.","Improvisación local",true),
          new("Historia absurda","Escribe una frase por turno y construye un final con BAEL.","1 · Lee el inicio.\n2 · Añade una frase.\n3 · Repite hasta el desenlace. No se evalúa tu respuesta.","Una impresora decide presentarse a las elecciones del campus.","Historia absurda local",true)]),
         ChatMode.Tarot=>new("Una carta, una buena pregunta.","El misterio es teatral. Tus decisiones siguen siendo tuyas.","Cartas imaginarias para explorar ideas, decisiones y metas. Es entretenimiento y reflexión, sin predicciones ni lecturas sobre otras personas. Todas las dinámicas de esta pantalla son locales.","#8050BA",
@@ -76,7 +76,7 @@ internal sealed class ModeGuideWindow : Window
         {
             int index=i; var offer=guide.Offers[i];var content=new StackPanel();
             content.Children.Add(Label(offer.Title,18,true));content.Children.Add(Label(offer.Benefit,13));
-            content.Children.Add(Label(offer.Local?"LOCAL · sin API":"CONVERSACIÓN · con API",11,true));
+            content.Children.Add(Label(offer.Fallback?"IA · respaldo local":offer.Local?"LOCAL · sin API":"CONVERSACIÓN · con API",11,true));
             var button=new Button { Content=content,Padding=new Thickness(14),Margin=new Thickness(0,0,10,10),HorizontalContentAlignment=HorizontalAlignment.Stretch,Tag=i };
             button.SetResourceReference(BackgroundProperty,"UiPanel");button.SetResourceReference(ForegroundProperty,"UiText");button.SetResourceReference(BorderBrushProperty,"UiBorder");
             button.Click+=(_,_)=>Select(index,settings); cards.Add(button);options.Children.Add(button);
@@ -99,7 +99,7 @@ internal sealed class ModeGuideWindow : Window
     {
         selected=index;var offer=guide.Offers[index];
         detailTitle.Text=offer.Title;detail.Text=offer.Steps;example.Text="Por ejemplo: "+offer.Example;
-        availability.Text=offer.Local?"Disponible sin conexión. Los resultados se muestran en el chat o la sala de juegos.":settings.OnlineChat?"Conversación con tu API configurada. Se enviará el texto al proveedor cuando pulses Enviar; si falla habrá una guía local básica.":"Conversación con API desactivada. Puedes preparar tu texto; para recibir comentarios abiertos activa tu proveedor en Ajustes. Sin API hay una guía básica, sin revisión personalizada.";
+        availability.Text=offer.Fallback?(settings.OnlineChat?"IA activa: se pedirá un chiste nuevo. Si el proveedor falla se indicará y se usará uno local.":"IA desactivada: se usará el repertorio local. Activa Chat y APIs para generar chistes nuevos."):offer.Local?"Disponible sin conexión. Los resultados se muestran en el chat o la sala de juegos.":settings.OnlineChat?"Conversación con tu API configurada. Se enviará el texto al proveedor cuando pulses Enviar; si falla habrá una guía local básica.":"Conversación con API desactivada. Puedes preparar tu texto; para recibir comentarios abiertos activa tu proveedor en Ajustes. Sin API hay una guía básica, sin revisión personalizada.";
         begin.Content=offer.Draft?"Preparar mi mensaje →":offer.Action.StartsWith('@')?"Abrir el juego →":"Empezar actividad →";
         foreach(var card in cards) { bool active=(int)card.Tag==index;card.SetResourceReference(BackgroundProperty,active?"UiSelected":"UiPanel");card.BorderThickness=new Thickness(active?2:1); }
     }

@@ -7,6 +7,12 @@ namespace Bael;
 
 internal sealed record HardwareDisk(string Name,string Media,string Bus,long Bytes,string Health,string Operation,double? Temperature,double? Wear,long? Hours,long? ReadErrors,long? WriteErrors)
 {
+    public string Manufacturer {get;init;}="";
+    public string Model {get;init;}="";
+    public string Serial {get;init;}="";
+    public string Firmware {get;init;}="";
+    public string Identity=>$"Fabricante: {Known(Manufacturer)} · Modelo: {Known(Model)}\nSerie: {Known(Serial)} · Firmware: {Known(Firmware)}";
+    private static string Known(string value)=>string.IsNullOrWhiteSpace(value)?"No informado":value.Trim();
     public string Size=>SystemMetrics.Size(Bytes);
     public string State=>string.IsNullOrWhiteSpace(Health)?"No disponible":Health;
     public string TemperatureText=>Temperature is >0 and <150?$"{Temperature:0} °C":"No disponible";
@@ -16,6 +22,11 @@ internal sealed record HardwareDisk(string Name,string Media,string Bus,long Byt
 }
 internal sealed record RamStick(string Slot,long Bytes,int Type,int Form,int Speed,int Configured,string Maker,string Part)
 {
+    public string Serial {get;init;}="";
+    public string Bank {get;init;}="";
+    public double? Voltage {get;init;}
+    public string Identity=>$"Fabricante: {(string.IsNullOrWhiteSpace(Maker)?"No informado":Maker.Trim())} · Referencia: {(string.IsNullOrWhiteSpace(Part)?"No informada":Part.Trim())}\nBanco: {(string.IsNullOrWhiteSpace(Bank)?"No informado":Bank)} · Serie: {(string.IsNullOrWhiteSpace(Serial)?"No informada":Serial)}";
+    public string VoltageText=>Voltage is >0?$"{Voltage:0.###} V (configurada, informada por firmware)":"Voltaje no informado";
     public string Size=>SystemMetrics.Size(Bytes);
     public string Kind=>Type switch { 26=>"DDR4",34=>"DDR5",24=>"DDR3",30=>"LPDDR4",35=>"LPDDR5",_=>$"SMBIOS {Type} (no identificado)" };
     public string Format=>Form switch {8=>"DIMM",12=>"SO-DIMM",_=>"No confirmado"};
@@ -26,6 +37,7 @@ internal sealed record HardwarePart(string Name,string Detail,string Status);
 internal sealed record HardwareIssue(string Name,int Code);
 internal sealed record SystemInventory
 {
+    public string WindowsUser {get;init;}="No informado";
     public string Computer {get;init;}="No disponible";
     public HardwarePart[] Cpu {get;init;}=[];
     public HardwarePart[] Board {get;init;}=[];
@@ -100,19 +112,35 @@ internal sealed record SystemInventory
     $board=@(Read-Cim 'Win32_BaseBoard' | ForEach-Object { @{Name="$($_.Manufacturer) $($_.Product)";Detail="Versión: $($_.Version) · estado WMI (no prueba física)";Status=[string]$_.Status} })
     $bios=@(Read-Cim 'Win32_BIOS' | ForEach-Object { @{Name='BIOS / UEFI';Detail="$($_.Manufacturer) · $($_.SMBIOSBIOSVersion)";Status=[string]$_.Status} })
     $gpu=@(Read-Cim 'Win32_VideoController' | ForEach-Object { @{Name=[string]$_.Name;Detail="Controlador: $($_.DriverVersion)";Status=[string]$_.Status} })
-    $ram=@(Read-Cim 'Win32_PhysicalMemory' | ForEach-Object { @{Slot=[string]$_.DeviceLocator;Bytes=[long]$_.Capacity;Type=[int]$_.SMBIOSMemoryType;Form=[int]$_.FormFactor;Speed=[int]$_.Speed;Configured=[int]$_.ConfiguredClockSpeed;Maker=[string]$_.Manufacturer;Part=([string]$_.PartNumber).Trim()} })
+    $ram=@(Read-Cim 'Win32_PhysicalMemory' | ForEach-Object { @{Slot=[string]$_.DeviceLocator;Bytes=[long]$_.Capacity;Type=[int]$_.SMBIOSMemoryType;Form=[int]$_.FormFactor;Speed=[int]$_.Speed;Configured=[int]$_.ConfiguredClockSpeed;Maker=[string]$_.Manufacturer;Part=([string]$_.PartNumber).Trim();Serial=([string]$_.SerialNumber).Trim();Bank=[string]$_.BankLabel;Voltage=$(if($_.ConfiguredVoltage -gt 0){[double]$_.ConfiguredVoltage/1000}else{$null})} })
     $arrays=@(Read-Cim 'Win32_PhysicalMemoryArray' | Where-Object { $_.Use -eq 3 } | ForEach-Object { @{Slots=[int]$_.MemoryDevices;MaximumKb=[long]$_.MaxCapacityEx} })
     $issues=@()
     try { $issues=@(Get-CimInstance -ClassName Win32_PnPEntity -Filter 'ConfigManagerErrorCode <> 0' -OperationTimeoutSec 5 | Select-Object -First 100 | ForEach-Object { @{Name=[string]$_.Name;Code=[int]$_.ConfigManagerErrorCode} }) }
     catch { $notes.Add('No se pudo consultar el estado de los dispositivos Plug and Play.') }
+    $legacyDisks=@(Read-Cim 'Win32_DiskDrive')
     $disks=@()
     try {
         $disks=@(Get-PhysicalDisk -ErrorAction Stop | ForEach-Object {
             $d=$_; $r=$null
+            $serial=([string]$d.SerialNumber).Trim()
+            $matches=@($legacyDisks | Where-Object { $serial -and ([string]$_.SerialNumber).Trim() -eq $serial })
+            $matched=$null
+            if($matches.Count -eq 1){$matched=$matches[0]}
+            $maker=([string]$d.Manufacturer).Trim()
+            if(-not $maker -and $null -ne $matched){$maker=([string]$matched.Manufacturer).Trim()}
+            $model=([string]$d.Model).Trim()
+            if(-not $model -and $null -ne $matched){$model=([string]$matched.Model).Trim()}
+            if(-not $model){$model=[string]$d.FriendlyName}
+            $firmware=([string]$d.FirmwareVersion).Trim()
+            if(-not $firmware -and $null -ne $matched){$firmware=([string]$matched.FirmwareRevision).Trim()}
             try { $r=$d | Get-StorageReliabilityCounter -ErrorAction Stop } catch { $notes.Add("Sin contadores de fiabilidad para $($d.FriendlyName): puede requerir permisos o no estar soportado.") }
-            @{Name=[string]$d.FriendlyName;Media=[string]$d.MediaType;Bus=[string]$d.BusType;Bytes=[long]$d.Size;Health=[string]$d.HealthStatus;Operation=($d.OperationalStatus -join ', ');Temperature=$r.Temperature;Wear=$r.Wear;Hours=$r.PowerOnHours;ReadErrors=$r.ReadErrorsUncorrected;WriteErrors=$r.WriteErrorsUncorrected}
+            @{Manufacturer=$maker;Model=$model;Serial=$serial;Firmware=$firmware;Name=[string]$d.FriendlyName;Media=[string]$d.MediaType;Bus=[string]$d.BusType;Bytes=[long]$d.Size;Health=[string]$d.HealthStatus;Operation=($d.OperationalStatus -join ', ');Temperature=$r.Temperature;Wear=$r.Wear;Hours=$r.PowerOnHours;ReadErrors=$r.ReadErrorsUncorrected;WriteErrors=$r.WriteErrorsUncorrected}
         })
     } catch { $notes.Add('El proveedor de almacenamiento no expuso los discos físicos. Las unidades y su espacio siguen disponibles.') }
-    @{Computer=(($computer | ForEach-Object { "$($_.Manufacturer) $($_.Model)" }) -join ', ');Cpu=$cpu;Board=@($board)+@($bios);Gpu=$gpu;Ram=$ram;Arrays=$arrays;Issues=$issues;Disks=$disks;Notes=@($notes.ToArray())} | ConvertTo-Json -Depth 6 -Compress
+    if($disks.Count -eq 0 -and $legacyDisks.Count -gt 0){
+        $notes.Add('Identidad de discos obtenida por Win32_DiskDrive; fiabilidad no disponible por este proveedor.')
+        $disks=@($legacyDisks | ForEach-Object { @{Name=[string]$_.Model;Model=[string]$_.Model;Manufacturer=[string]$_.Manufacturer;Serial=([string]$_.SerialNumber).Trim();Firmware=[string]$_.FirmwareRevision;Media=[string]$_.MediaType;Bus=[string]$_.InterfaceType;Bytes=[long]$_.Size;Health='No disponible';Operation=[string]$_.Status;Temperature=$null;Wear=$null;Hours=$null;ReadErrors=$null;WriteErrors=$null} })
+    }
+    @{WindowsUser=(($computer | ForEach-Object { [string]$_.UserName }) -join ', ');Computer=(($computer | ForEach-Object { "$($_.Manufacturer) $($_.Model)" }) -join ', ');Cpu=$cpu;Board=@($board)+@($bios);Gpu=$gpu;Ram=$ram;Arrays=$arrays;Issues=$issues;Disks=$disks;Notes=@($notes.ToArray())} | ConvertTo-Json -Depth 6 -Compress
     """;
 }

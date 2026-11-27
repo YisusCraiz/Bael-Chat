@@ -129,7 +129,7 @@ public partial class MainWindow : Window
             lastSpontaneous = reply;
             spontaneousContext = reply;
             RememberTurn(ChatMode.Free,"Evento de la app: BAEL inicia una conversación por su propia iniciativa.",reply);
-            ShowReply(ChatMode.Free, reply);
+            ShowReply(ChatMode.Free, reply, false);
             if (current.SpontaneousVoice) { timings = new ConversationTimings(); _ = ReadAloudAsync(); }
         }
         catch (OperationCanceledException) { }
@@ -433,6 +433,52 @@ public partial class MainWindow : Window
         finally { settings=previous;SelectMode(ChatMode.Student); }
     }
 
+    private sealed class ComedyApiHandler : HttpMessageHandler
+    {
+        internal int Calls;internal bool Fail;
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)
+        {
+            Calls++;string payload=await request.Content!.ReadAsStringAsync(token);
+            if(!payload.Contains("Crea un chiste") || !payload.Contains("redes")) throw new InvalidOperationException("El chiste no recibió su instrucción o tema.");
+            return new HttpResponseMessage(Fail?System.Net.HttpStatusCode.ServiceUnavailable:System.Net.HttpStatusCode.OK)
+            { Content=new StringContent(Fail?"{}":"{\"choices\":[{\"message\":{\"content\":\"Chiste nuevo de redes para la prueba.\"}}]}",System.Text.Encoding.UTF8,"application/json") };
+        }
+    }
+    internal async Task VerifyComedyApiAsync()
+    {
+        var previous=settings;var previousRouter=router;
+        try
+        {
+            var handler=new ComedyApiHandler();using var client=new HttpClient(handler);
+            router=new ChatRouter(client);settings=previous with { OnlineChat=true,SpeakTextReplies=false,Profiles=[new(){Provider="Groq",Model="test",Key="fake"}],DocumentRules=[] };
+            SelectMode(ChatMode.Comedy);histories[ChatMode.Comedy]=[new("user","Quiero chistes de redes"),new("model","Vale")];
+            Message.Text="Chiste aleatorio";await SendCurrentMessage();
+            if(handler.Calls!=1 || latestReply!="Chiste nuevo de redes para la prueba.") throw new InvalidOperationException("El chiste quedó atrapado en el repertorio local.");
+            handler.Fail=true;Message.Text="Chiste aleatorio";await SendCurrentMessage();
+            if(handler.Calls!=2 || latestReply=="Chiste nuevo de redes para la prueba." || !ChatStatus.Text.Contains("guía local")) throw new InvalidOperationException("El fallo de API no usó el respaldo local.");
+            settings=settings with { OnlineChat=false };Message.Text="Chiste aleatorio";await SendCurrentMessage();
+            if(handler.Calls!=2) throw new InvalidOperationException("El modo sin conexión consultó una API.");
+        }
+        finally { StopVoice();router=previousRouter;settings=previous;SelectMode(ChatMode.Student); }
+    }
+
+    internal async Task VerifyAutoReadAsync()
+    {
+        var previous=settings;int calls=0;
+        try
+        {
+            settings=previous with { VoiceKey="test",VoiceId="test",SpeakTextReplies=true };
+            automaticVoiceGenerator=async token=> { calls++;await Task.Delay(Timeout.Infinite,token);return []; };
+            SelectMode(ChatMode.Free);ShowReply(ChatMode.Free,"respuesta uno");ShowReply(ChatMode.Free,"respuesta dos");
+            await Dispatcher.InvokeAsync(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            if(calls!=1 || voiceRequest is null) throw new InvalidOperationException("La lectura automática se duplicó o no comenzó.");
+            StopVoice();settings=settings with { SpeakTextReplies=false };ShowReply(ChatMode.Free,"solo texto");
+            await Dispatcher.InvokeAsync(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            if(calls!=1) throw new InvalidOperationException("La lectura automática ignoró su configuración.");
+        }
+        finally { StopVoice();automaticVoiceGenerator=null;settings=previous;SelectMode(ChatMode.Student); }
+    }
+
     internal async Task VerifyCommandsAsync()
     {
         BaelSettings previous = settings;
@@ -619,21 +665,22 @@ public partial class MainWindow : Window
     private void ExplainFunctions(object sender, RoutedEventArgs e)
     { ShowReply(mode, ModeHelp()); }
 
-    private bool HandleAssistantCommand(string message)
+    private bool HandleAssistantCommand(string message,bool? read=null)
     {
+        void Explain(ChatMode target,string answer)=>ShowReply(target,answer,read);
         var command = AssistantCommands.Parse(message);
         if(StudentView && command.Kind is AssistantCommandKind.AllModes or AssistantCommandKind.ChooseMode or AssistantCommandKind.ChangeMode)
-        { ShowReply(mode,"Estás en el chat de alumnos. Pulsa Desbloquear BAEL para acceder al personaje libre y sus otros modos."); return true; }
+        { Explain(mode,"Estás en el chat de alumnos. Pulsa Desbloquear BAEL para acceder al personaje libre y sus otros modos."); return true; }
         switch (command.Kind)
         {
             case AssistantCommandKind.Help:
-                ShowReply(mode, ModeHelp()); return true;
+                Explain(mode, ModeHelp()); return true;
             case AssistantCommandKind.AllModes:
             case AssistantCommandKind.ChooseMode:
-                ShowReply(mode, AssistantCommands.AllModes()); return true;
+                Explain(mode, AssistantCommands.AllModes()); return true;
             case AssistantCommandKind.ChangeMode when command.Target is ChatMode selected:
                 SelectMode(selected);
-                ShowReply(selected, $"Modo {Responses.Name(selected)} activado. {ModeActivities.Description(selected)}\nPuedes preguntarme: ¿qué puedes hacer?");
+                Explain(selected, $"Modo {Responses.Name(selected)} activado. {ModeActivities.Description(selected)}\nPuedes preguntarme: ¿qué puedes hacer?");
                 return true;
             default: return false;
         }
@@ -734,6 +781,7 @@ public partial class MainWindow : Window
 
     private async Task<bool> SendCurrentMessage(bool fromSpeech = false)
     {
+        void Deliver(ChatMode target,string answer)=>ShowReply(target,answer,fromSpeech?settings.SpeakVoiceReplies:settings.SpeakTextReplies);
         string message = Message.Text.Trim();
         if (message.Length == 0 || !SendButton.IsEnabled) return false;
         CancelSpontaneous();
@@ -743,29 +791,32 @@ public partial class MainWindow : Window
         ChatMode profile = mode;
         BaelSettings current = QuerySettings;
         AddUserMessage(message); Message.Clear(); Message.Focus(); ChatStatus.Text = "";
-        if (HandleAssistantCommand(message)) { RefreshActivity(); return true; }
+        if (HandleAssistantCommand(message,fromSpeech?settings.SpeakVoiceReplies:settings.SpeakTextReplies)) { RefreshActivity(); return true; }
         bool limited = current.GetDocumentRule(profile).Limited;
         if(!limited && profile==ChatMode.System && SystemCommands.Section(message) is int section)
         {
             OpenSystemPanel(section);
-            ShowReply(profile,"Abrí el Centro del sistema dentro de BAEL. Usa Revisar hardware para leer los componentes, o analiza los archivos y temporales desde sus pestañas. La limpieza requiere revisar la lista y pulsar Limpiar selección. No se enviaron datos del equipo a la IA.");
+            Deliver(profile,"Abrí el Centro del sistema dentro de BAEL. Usa Revisar hardware para leer los componentes, o analiza los archivos y temporales desde sus pestañas. La limpieza requiere revisar la lista y pulsar Limpiar selección. No se enviaron datos del equipo a la IA.");
             return true;
         }
         if(!limited && profile==ChatMode.English && EnglishCommands.Section(message) is int englishSection)
         {
             OpenEnglishPanel(englishSection);
-            ShowReply(profile,"Abrí el Aula de inglés. Elige nivel y tema: escritura, lectura en voz alta, escucha de 50 palabras y conversación. Los intentos y borradores se guardan localmente; la voz y la IA usan los servicios que elijas en el aula.");
+            Deliver(profile,"Abrí el Aula de inglés. Elige nivel y tema: escritura, lectura en voz alta, escucha de 50 palabras y conversación. Los intentos y borradores se guardan localmente; la voz y la IA usan los servicios que elijas en el aula.");
             return true;
         }
-        if(limited && pdfQuiz.TryReply(profile,message,out string quizReply)) { ShowReply(profile,quizReply); return true; }
-        if (!limited && activities.TryReply(profile,message,out string activityReply))
-        { string formatted=current.GetPersonality(profile).FormatLocal(profile,activityReply); RememberTurn(profile,message,formatted); ShowReply(profile,formatted); UpdateModeEntry(); return true; }
+        if(limited && pdfQuiz.TryReply(profile,message,out string quizReply)) { Deliver(profile,quizReply); return true; }
+        bool cloudJoke=!limited && profile==ChatMode.Comedy && current.OnlineChat && message.Trim().Equals("Chiste aleatorio",StringComparison.OrdinalIgnoreCase);
+        if(cloudJoke) activities.Stop(profile);
+        if (!limited && !cloudJoke && activities.TryReply(profile,message,out string activityReply))
+        { string formatted=current.GetPersonality(profile).FormatLocal(profile,activityReply); RememberTurn(profile,message,formatted); Deliver(profile,formatted); UpdateModeEntry(); return true; }
         string reply = current.GetPersonality(profile).FormatLocal(profile,Responses.For(profile,message));
+        if(cloudJoke && activities.TryReply(profile,"Chiste aleatorio",out string localJoke)) reply=localJoke;
         if (!limited && profile == ChatMode.System && (message.Contains("diagn",StringComparison.OrdinalIgnoreCase)
             || message.Contains("examina",StringComparison.OrdinalIgnoreCase) || message.Contains("revisa",StringComparison.OrdinalIgnoreCase)))
-        { RememberTurn(profile,message,reply); ShowReply(profile,reply); return true; }
+        { RememberTurn(profile,message,reply); Deliver(profile,reply); return true; }
         if (!limited && !current.OnlineChat)
-        { ChatStatus.Text = "Sin conexión · actividades y guías locales."; RememberTurn(profile,message,reply); ShowReply(profile,reply); return true; }
+        { ChatStatus.Text = "Sin conexión · actividades y guías locales."; RememberTurn(profile,message,reply); Deliver(profile,reply); return true; }
         if (!histories.TryGetValue(profile,out var history)) { history = []; histories[profile] = history; }
         using var request = CancellationTokenSource.CreateLinkedTokenSource(chatLifetime.Token);
         replyRequest = request; waitingForReply = true; SendButton.IsEnabled = false;
@@ -803,6 +854,7 @@ public partial class MainWindow : Window
             {
                 string routedMessage = current.UseConversationContext && profile == ChatMode.Free && spontaneousContext.Length > 0
                     ? "Contexto: BAEL inició antes este comentario: «" + spontaneousContext + "».\nMensaje actual del usuario: " + message : message;
+                if(cloudJoke) routedMessage="Crea un chiste NUEVO y breve relacionado con el último tema que el usuario haya mencionado en el historial. Si no hay tema, usa una situación cotidiana del campus. No repitas los chistes anteriores. Responde solo con el chiste, sin introducción. Si el usuario indicó un tema sensible, usa humor respetuoso. ";
                 ChatResult result = await router.ReplyAsync(current,profile,routedMessage,history.ToArray(),request.Token,
                     new Progress<string>(status => { if (!isClosed && replyRequest == request && !request.IsCancellationRequested) ChatStatus.Text = status; }), memoryContext:memory.ContextFor(profile));
                 if (!string.IsNullOrWhiteSpace(result.Text)) reply = result.Text;
@@ -814,7 +866,7 @@ public partial class MainWindow : Window
                 if (profile == ChatMode.Free) spontaneousContext = "";
                 RememberTurn(profile,message,reply);
             }
-            ShowReply(profile,reply); return true;
+            Deliver(profile,reply); return true;
         }
         catch (OperationCanceledException) when (request.IsCancellationRequested)
         { if (!isClosed) ChatStatus.Text = "Respuesta cancelada. Puedes enviar otra pregunta."; return false; }
@@ -822,8 +874,8 @@ public partial class MainWindow : Window
         {
             if (isClosed || request.IsCancellationRequested || mode != profile) return false;
             ChatStatus.Text = limited ? "No llegó la explicación de IA. Se muestran los pasajes locales." : "No llegó la respuesta. Se mostró una guía local.";
-            if (!limited) { RememberTurn(profile,message,reply); ShowReply(profile,reply); return true; }
-            if(pdfMeasured) { ShowReply(profile,reply); return true; }
+            if (!limited) { RememberTurn(profile,message,reply); Deliver(profile,reply); return true; }
+            if(pdfMeasured) { Deliver(profile,reply); return true; }
             return false;
         }
         finally
@@ -844,7 +896,9 @@ public partial class MainWindow : Window
         Conversation.ScrollIntoView(line);
     }
 
-    private void ShowReply(ChatMode profile, string reply)
+    private long autoVoiceVersion;
+    private Func<CancellationToken,Task<byte[]>>? automaticVoiceGenerator;
+    private void ShowReply(ChatMode profile, string reply,bool? automaticallyRead=null)
     {
         AppendMemory(profile,reply,false);
         if(profile==mode)
@@ -854,6 +908,14 @@ public partial class MainWindow : Window
             Conversation.Items.Add(line);
             while(Conversation.Items.Count>100) Conversation.Items.RemoveAt(0);
             Conversation.ScrollIntoView(line);
+            long version=++autoVoiceVersion;
+            if((automaticallyRead??settings.SpeakTextReplies) && !string.IsNullOrWhiteSpace(settings.EffectiveVoiceKey) && !string.IsNullOrWhiteSpace(settings.EffectiveVoiceId))
+                Dispatcher.BeginInvoke(new Action(async ()=>
+                {
+                    if(isClosed || mode!=profile || version!=autoVoiceVersion) return;
+                    StopVoice();
+                    await ReadAloudAsync(automaticVoiceGenerator);
+                }));
         }
         ReplyReady?.Invoke(profile,reply);
     }
@@ -949,8 +1011,7 @@ public partial class MainWindow : Window
             TalkButton.IsEnabled = false;
             speechStage = AssistantStage.Idle; RefreshActivity();
             bool answered = await SendCurrentMessage(fromSpeech:true);
-            if (!isClosed && !request.IsCancellationRequested && answered && current.SpeakVoiceReplies && latestReply is not null)
-                _ = ReadAloudAsync();
+
         }
         catch (OperationCanceledException)
         {
@@ -993,6 +1054,7 @@ public partial class MainWindow : Window
     private bool OwnsVoice(CancellationTokenSource request) => !isClosed && voiceRequest == request && !request.IsCancellationRequested;
     private void StopVoice()
     {
+        autoVoiceVersion++;
         var previous = voiceRequest; voiceRequest = null; previous?.Cancel();
         EndPlayback(""); RefreshActivity();
     }

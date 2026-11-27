@@ -9,10 +9,10 @@ internal static class SystemChecks
     {
         var unknown=new HardwareDisk("Disco","SSD","USB",100,"Unknown","",null,null,null,null,null);
         if(unknown.TemperatureText!="No disponible" || unknown.WearText!="No disponible" || !unknown.ErrorText.Contains("N/D")) Fail("Se inventó salud de un disco sin contadores.");
-        var hardware=new SystemInventory { Ram=[new("DIMM",8L<<30,26,8,3200,2666,"Fabricante","Parte")],Arrays=[new(2,16L<<20)] };
+        var hardware=new SystemInventory { Ram=[new("DIMM",8L<<30,26,8,3200,2666,"Fabricante","Parte") { Serial="SERIE-RAM",Bank="BANK 0",Voltage=1.2 }],Disks=[new("Disco","SSD","NVMe",256L<<30,"Unknown","",null,null,null,null,null) { Manufacturer="Fabricante disco",Serial="SERIE-DISCO",Model="Modelo",Firmware="FW1" }],Arrays=[new(2,16L<<20)] };
         if(!hardware.RamAdvice.Contains("no garantiza") || !hardware.RamAdvice.Contains("No confirma")) Fail("La recomendación de RAM prometió compatibilidad.");
         var restored=JsonSerializer.Deserialize<SystemInventory>(JsonSerializer.Serialize(hardware))!;
-        if(restored.Ram.Length!=1 || restored.Ram[0].Configured!=2666 || !restored.Ram[0].Frequency.Contains("3200")) Fail("Se perdieron los datos de RAM.");
+        if(restored.Disks[0].Serial!="SERIE-DISCO" || !restored.Disks[0].Identity.Contains("FW1") || restored.Ram[0].Serial!="SERIE-RAM" || restored.Ram[0].Voltage!=1.2 || restored.Ram.Length!=1 || restored.Ram[0].Configured!=2666 || !restored.Ram[0].Frequency.Contains("3200")) Fail("Se perdieron los datos de RAM.");
         if(SystemCommands.Section("liberar espacio")!=4 || SystemCommands.Section("no abras el panel del sistema") is not null) Fail("Los comandos técnicos ejecutaron una negación.");
         progress?.Invoke("Sistema: interfaz de prueba");
         var window=new SystemWindow(new BaelSettings());

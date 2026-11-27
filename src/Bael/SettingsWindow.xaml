@@ -247,6 +247,7 @@
                     <Slider x:Name="SpeechThreshold" Minimum="0.1" Maximum="5" TickFrequency="0.1" IsSnapToTickEnabled="True" />
                     <TextBlock Text="{Binding ElementName=SpeechThreshold, Path=Value, StringFormat={}{0:0.0}%}" />
                     <TextBlock Text="Pausa menor: envía antes la frase. Pausa mayor: permite pensar entre palabras. Baja el nivel si tu voz es suave; súbelo si el ruido activa la detección. El micrófono solo se abre al pulsar Hablar o su atajo." TextWrapping="Wrap" Foreground="{DynamicResource UiMuted}" Margin="0,6,0,10" />
+                    <CheckBox x:Name="SpeakTextReplies" Content="Leer automáticamente las respuestas del chat escrito con ElevenLabs" Margin="0,12,0,6" />
                     <CheckBox x:Name="SpeakVoiceReplies" Content="Responder en voz alta a mis mensajes hablados" Margin="0,12,0,6" />
                     <TextBlock Text="En el chat pulsa Hablar. La grabación del micrófono seleccionado se envía a ElevenLabs para transcribirla y después se consulta el modo actual. La clave necesita acceso a Speech to Text y cuota disponible."
                                TextWrapping="Wrap" Margin="0,0,0,6" />

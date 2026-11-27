@@ -115,10 +115,11 @@ public partial class SystemWindow : Window
     private void ShowInventory(SystemInventory data)
     {
         inventory=data;
+        WindowsIdentity.Text="Usuario de Windows: "+(string.IsNullOrWhiteSpace(data.WindowsUser)?"No informado":data.WindowsUser)+" · no acredita propiedad de RAM o discos";
         InventorySummary.Text=$"{data.Disks.Length} discos físicos · {data.Ram.Length} módulos RAM · {data.Issues.Length} incidencias devueltas. Abre una sección para ver detalles y disponibilidad.";
         RamSummary.Text=$"{data.Ram.Length} módulos devueltos por Windows. Abre el detalle para entender ubicaciones, velocidades y capacidad declarada; confirma compatibilidad con el fabricante.";
         ComputerName.Text=string.IsNullOrWhiteSpace(data.Computer)?"Modelo no disponible":data.Computer;
-        RamAdvice.Text=data.RamAdvice; RamModules.ItemsSource=data.Ram;
+        RamAdvice.Text=data.RamAdvice; RamModules.ItemsSource=data.Ram; RamCards.ItemsSource=data.Ram;
         DiskCards.ItemsSource=data.Disks; Parts.ItemsSource=data.Cpu.Concat(data.Board).Concat(data.Gpu).ToArray(); Issues.ItemsSource=data.Issues;
         DiskNotes.Text=(data.Disks.Length==0?"No se obtuvieron discos físicos. ":"")+string.Join("\n",data.Notes);
         ComponentNotes.Text=(data.Issues.Length==0?"La consulta no devolvió incidencias de dispositivos; esto no garantiza ausencia de fallos. ":"Consulta cada código en el Administrador de dispositivos y el soporte del fabricante antes de cambiar controladores. ")+string.Join("\n",data.Notes);
@@ -202,7 +203,7 @@ public partial class SystemWindow : Window
     {
         ShowInventory(new() { Computer="PC de prueba",Ram=[new("DIMM 0",8L<<30,26,8,3200,2666,"Fabricante","Referencia")],Arrays=[new(2,16L<<20)],
             Disks=[new("Disco de prueba","SSD","NVMe",256L<<30,"Warning","OK",null,85,1000,1,0)],Cpu=[new("CPU de prueba","8 hilos","OK")],Issues=[new("Dispositivo de prueba",28)] });
-        if(!RamAdvice.Text.Contains("Posibles") || !Recommendations.Text.Contains("copia de seguridad") || DiskCards.Items.Count!=1 || Parts.Items.Count!=1 || Issues.Items.Count!=1 || CleanButton.IsEnabled)
+        if(!RamAdvice.Text.Contains("Posibles") || !Recommendations.Text.Contains("copia de seguridad") || RamCards.Items.Count!=1 || DiskCards.Items.Count!=1 || Parts.Items.Count!=1 || Issues.Items.Count!=1 || CleanButton.IsEnabled)
             throw new InvalidOperationException("El centro de sistema perdió datos, límites o recomendaciones.");
         SelectSection(1); if(!CoachMessage.Text.Contains("disco")) throw new InvalidOperationException("La guía no sigue la sección de discos.");
         cleaning=[new DiskFile(Path.Combine(temporaryRoot,"bael-ui-fixture.tmp"),4096,DateTime.UtcNow)];
