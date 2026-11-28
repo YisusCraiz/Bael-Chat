@@ -30,6 +30,9 @@ public partial class DesktopWindow : Window
     private bool dancing;
     private readonly DanceRoutine danceRoutine = new();
     private BitmapImage[] danceFrames = [];
+    private BitmapSource[] sixSevenFrames=[];
+    private bool sixSevenActive;
+    private long sixSevenStarted;
     private GlobalShortcuts? shortcuts;
     private readonly DispatcherTimer movementTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private readonly DispatcherTimer bubbleTimer = new() { Interval = TimeSpan.FromMilliseconds(30) };
@@ -71,9 +74,16 @@ public partial class DesktopWindow : Window
             image.UriSource = new Uri(Path.Combine(AppContext.BaseDirectory, "Sprites", "desktop", $"dance-{index}.png"));
             image.EndInit(); image.Freeze(); return image;
         }).ToArray();
+        var atlas=new BitmapImage();atlas.BeginInit();atlas.CacheOption=BitmapCacheOption.OnLoad;
+        atlas.UriSource=new Uri(Path.Combine(AppContext.BaseDirectory,"Sprites","desktop","six-seven-atlas.png"));atlas.EndInit();atlas.Freeze();
+        sixSevenFrames=Enumerable.Range(0,6).Select(i=>
+        {
+            int left=atlas.PixelWidth*(i%3)/3,right=atlas.PixelWidth*(i%3+1)/3,top=atlas.PixelHeight*(i/3)/2,bottom=atlas.PixelHeight*(i/3+1)/2;
+            var cropped=new CroppedBitmap(atlas,new Int32Rect(left,top,right-left,bottom-top));cropped.Freeze();return (BitmapSource)cropped;
+        }).ToArray();
         if (!testMode) SourceInitialized += (_, _) =>
         {
-            shortcuts = new GlobalShortcuts(this, () => chat.TalkFromShortcut(), ToggleDance, () => ChangeSize(0.1), () => ChangeSize(-0.1));
+            shortcuts = new GlobalShortcuts(this, () => chat.TalkFromShortcut(), ToggleDance, () => ChangeSize(0.1), () => ChangeSize(-0.1),ToggleSixSeven);
             ConfigureShortcuts();
         };
         chat.SpeechNoticeChanged += text => { if (!string.IsNullOrWhiteSpace(text)) ShowBubble(selectedMode, text); };
@@ -98,7 +108,7 @@ public partial class DesktopWindow : Window
         {
             conversationPoseStarted = Environment.TickCount64;
             lastActivity = conversationPoseStarted;
-            if (stage != AssistantStage.Idle) { danceRoutine.Reset(); dancing = false; transition = null; }
+            if (stage != AssistantStage.Idle) { StopSixSeven(); danceRoutine.Reset(); dancing = false; transition = null; }
             ActivityBadge.Visibility = stage == AssistantStage.Idle ? Visibility.Collapsed : Visibility.Visible;
             ActivityBadgeText.Text = stage switch
             {
@@ -114,6 +124,7 @@ public partial class DesktopWindow : Window
         chat.UserSpoke += OnMessage;
         chat.ModeChanged += selected =>
         {
+            StopSixSeven();
             AnswerBubble.IsOpen = false;
             bubbleTimer.Stop();
             danceRoutine.Reset();
@@ -128,7 +139,7 @@ public partial class DesktopWindow : Window
         };
         chat.AccessChanged += student =>
         {
-            ModeWheel.IsOpen=false; motion.Stop(); danceRoutine.Reset(); dancing=false; transition=null;
+            StopSixSeven();ModeWheel.IsOpen=false; motion.Stop(); danceRoutine.Reset(); dancing=false; transition=null;
             audioMonitor.Dispose();
             DesktopAccess.Content=student?"Desbloquear":"Alumnos";
             SetOutfit(student?"unicorn":Responses.Sprite(selectedMode));
@@ -220,6 +231,15 @@ public partial class DesktopWindow : Window
         chat.SelectMode(ChatMode.Gamer);
         if(selectedMode!=ChatMode.Student) throw new InvalidOperationException("La rueda saltó el acceso de alumnos.");
         chat.SetStudentView(false);
+        SixSevenRoutine.Verify();
+        string previousOutfit=outfit;ToggleSixSeven();Tick(null,EventArgs.Empty);MoveFreely(null,EventArgs.Empty);
+        if(!sixSevenActive || SixSevenLayer.Visibility!=Visibility.Visible || !sixSevenFrames.Contains(Character.Source) || SixDigit.Text!="6" || SevenDigit.Text!="7") throw new InvalidOperationException("La animación six seven no mostró los sprites y números.");
+        ToggleSixSeven();
+        if(sixSevenActive || SixSevenLayer.Visibility!=Visibility.Collapsed || outfit!=previousOutfit) throw new InvalidOperationException("La animación no recuperó su aspecto anterior.");
+        chat.SetStudentView(true);ToggleSixSeven();Tick(null,EventArgs.Empty);
+        if(!sixSevenActive || selectedMode!=ChatMode.Student) throw new InvalidOperationException("Six seven no funciona en la vista de alumnos.");
+        StopSixSeven();chat.SetStudentView(false);
+        if (sixSevenFrames.Length!=6 || sixSevenFrames.Any(image=>image.PixelWidth==0)) throw new InvalidOperationException("Faltan fotogramas six seven.");
         if (danceFrames.Length != 20 || danceFrames.Any(image => image.PixelWidth == 0))
             throw new InvalidOperationException("Faltan los sprites de baile.");
         foreach (var sequence in frames.Values)
@@ -248,6 +268,30 @@ public partial class DesktopWindow : Window
     {
         string problem = shortcuts?.Apply(settings) ?? "";
         if (problem.Length > 0) ShowBubble(selectedMode, problem);
+    }
+    private void ToggleSixSeven()
+    {
+        if(sixSevenActive) { StopSixSeven();return; }
+        if(closing || settingsOpen || chat.CurrentStage!=AssistantStage.Idle) return;
+        HideAnswerBubble();ModeWheel.IsOpen=false;danceRoutine.Reset();dancing=false;motion.Stop();transition=null;
+        sixSevenActive=true;sixSevenStarted=Environment.TickCount64;
+        SixSevenLayer.Visibility=Visibility.Visible;AnimateSixSeven(sixSevenStarted);
+    }
+    private void StopSixSeven()
+    {
+        if(!sixSevenActive) return;
+        sixSevenActive=false;SixSevenLayer.Visibility=Visibility.Collapsed;
+        BodyBob.X=BodyBob.Y=BodyTilt.Angle=0;Facing.ScaleX=Facing.ScaleY=1;
+        Character.Source=frames[outfit][0];lastActivity=Environment.TickCount64;
+        chatterClock.Reset(lastActivity,settings.SpontaneousSeconds);
+    }
+    private void AnimateSixSeven(long now)
+    {
+        var pose=SixSevenRoutine.Pose((now-sixSevenStarted)/1000.0);
+        Character.Source=sixSevenFrames[pose.Frame];
+        Canvas.SetLeft(SixDigit,74+pose.Sway);Canvas.SetTop(SixDigit,pose.SixY);
+        Canvas.SetLeft(SevenDigit,182-pose.Sway);Canvas.SetTop(SevenDigit,pose.SevenY);
+        Facing.ScaleX=Facing.ScaleY=1;BodyBob.X=pose.Sway*0.35;BodyBob.Y=pose.Bob;BodyTilt.Angle=pose.Sway*0.35;
     }
     private void ToggleDance()
     {
@@ -305,6 +349,7 @@ public partial class DesktopWindow : Window
     private void Tick(object? sender, EventArgs e)
     {
         long now = Environment.TickCount64;
+        if(sixSevenActive) { AnimateSixSeven(now);return; }
         if(chat.StudentView)
         {
             dancing=false; transition=null; motion.Stop();
@@ -389,7 +434,7 @@ public partial class DesktopWindow : Window
     {
         double seconds = Stopwatch.GetElapsedTime(movementTimestamp).TotalSeconds;
         movementTimestamp = Stopwatch.GetTimestamp();
-        bool paused = chat.StudentView || !settings.Walk || IsMouseOver || dragStart is not null || settingsOpen
+        bool paused = sixSevenActive || chat.StudentView || !settings.Walk || IsMouseOver || dragStart is not null || settingsOpen
             || chat.IsVisible || ModeWheel.IsOpen || AnswerBubble.IsOpen || transition is not null || danceRoutine.Active || chat.CurrentStage != AssistantStage.Idle;
         if (paused)
             motion.Stop();
@@ -402,6 +447,7 @@ public partial class DesktopWindow : Window
             Top = next.Y;
         }
 
+        if(sixSevenActive) { AnimateSixSeven(Environment.TickCount64);return; }
         if (chat.CurrentStage != AssistantStage.Idle)
         {
             var gesture = ConversationActivity.Pose(chat.CurrentStage,(Environment.TickCount64-conversationPoseStarted)/1000.0);
@@ -572,6 +618,7 @@ public partial class DesktopWindow : Window
 
     private void ToggleWheel()
     {
+        StopSixSeven();
         if(chat.StudentView) { ShowBubble(ChatMode.Student,"Pulsa Desbloquear para acceder a los otros modos."); return; }
         lastActivity = Environment.TickCount64;
         ModeWheel.IsOpen = !ModeWheel.IsOpen;
@@ -585,6 +632,7 @@ public partial class DesktopWindow : Window
         { chat.SetStudentView(!chat.StudentView); e.Handled=true; }
         else if (e.Key == Key.Escape)
         {
+            StopSixSeven();
             ModeWheel.IsOpen = false;
             e.Handled = true;
         }
@@ -643,6 +691,7 @@ public partial class DesktopWindow : Window
 
     private void ShowSettings(object sender, RoutedEventArgs e)
     {
+        StopSixSeven();
         Interact();
         settingsOpen = true;
         shortcuts?.Suspend();

@@ -23,6 +23,7 @@ internal sealed record BaelSettings
     public bool SpontaneousVoice { get; init; }
     public double ChatTransparency { get; init; } = 0.35;
     public string TalkShortcut { get; init; } = "Ctrl+Alt+V";
+    public string SixSevenShortcut { get; init; } = "Ctrl+Alt+D6";
     public string DanceShortcut { get; init; } = "Ctrl+Alt+B";
     public bool Topmost { get; init; } = true;
     public int IdleSeconds { get; init; } = 30;

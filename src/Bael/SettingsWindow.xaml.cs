@@ -85,6 +85,7 @@ public partial class SettingsWindow : Window
         ChatTransparency.Value = Math.Clamp(settings.ChatTransparency * 100, 0, 65);
         TalkShortcut.Text = settings.TalkShortcut;
         DanceShortcut.Text = settings.DanceShortcut;
+        SixSevenShortcut.Text=settings.SixSevenShortcut;
         PinWindow.IsChecked = settings.Topmost;
         AllowWalking.IsChecked = settings.Walk;
         DanceWithAudio.IsChecked = settings.DanceWithAudio;
@@ -156,7 +157,7 @@ public partial class SettingsWindow : Window
         ShortcutStatus.Text = "Combinación capturada. Guarda para aplicar.";
     }
     private void ResetShortcuts(object sender, RoutedEventArgs e)
-    { TalkShortcut.Text = "Ctrl+Alt+V"; DanceShortcut.Text = "Ctrl+Alt+B"; EnlargeShortcut.Text = "Ctrl+Alt+Up"; ShrinkShortcut.Text = "Ctrl+Alt+Down"; ShortcutStatus.Text = "Atajos restaurados. Guarda para aplicar."; }
+    { TalkShortcut.Text = "Ctrl+Alt+V"; DanceShortcut.Text = "Ctrl+Alt+B"; SixSevenShortcut.Text="Ctrl+Alt+D6"; EnlargeShortcut.Text = "Ctrl+Alt+Up"; ShrinkShortcut.Text = "Ctrl+Alt+Down"; ShortcutStatus.Text = "Atajos restaurados. Guarda para aplicar."; }
 
     private void ChooseVoice(object sender, SelectionChangedEventArgs e)
     {
@@ -631,7 +632,7 @@ public partial class SettingsWindow : Window
     private void Save(object sender, RoutedEventArgs e)
     {
         if (importing) return;
-        string[] bindings = [TalkShortcut.Text, DanceShortcut.Text, EnlargeShortcut.Text, ShrinkShortcut.Text];
+        string[] bindings = [TalkShortcut.Text, DanceShortcut.Text, EnlargeShortcut.Text, ShrinkShortcut.Text,SixSevenShortcut.Text];
         var unique = new HashSet<Shortcut>();
         foreach (string binding in bindings)
         {
@@ -669,6 +670,7 @@ public partial class SettingsWindow : Window
             ChatTransparency = ChatTransparency.Value / 100,
             TalkShortcut = TalkShortcut.Text,
             DanceShortcut = DanceShortcut.Text,
+            SixSevenShortcut=SixSevenShortcut.Text,
             Topmost = PinWindow.IsChecked == true,
             IdleSeconds = (int)IdleDelay.Value,
             MessagesToUndress = (int)MessageThreshold.Value,

@@ -20,6 +20,10 @@
                 </TransformGroup>
             </Image.RenderTransform>
         </Image>
+        <Canvas x:Name="SixSevenLayer" Visibility="Collapsed" Width="300" Height="300" IsHitTestVisible="False">
+            <TextBlock x:Name="SixDigit" Text="6" FontFamily="Segoe UI Black" FontSize="48" FontWeight="Black" Foreground="#85E9FF" Width="52" TextAlignment="Center" Canvas.Left="74" Canvas.Top="66"><TextBlock.Effect><DropShadowEffect Color="#29213D" BlurRadius="8" ShadowDepth="0" Opacity="1"/></TextBlock.Effect></TextBlock>
+            <TextBlock x:Name="SevenDigit" Text="7" FontFamily="Segoe UI Black" FontSize="48" FontWeight="Black" Foreground="#FFE273" Width="52" TextAlignment="Center" Canvas.Left="182" Canvas.Top="108"><TextBlock.Effect><DropShadowEffect Color="#29213D" BlurRadius="8" ShadowDepth="0" Opacity="1"/></TextBlock.Effect></TextBlock>
+        </Canvas>
         <WrapPanel VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,4">
             <Button Content="Ajustes" Click="ShowSettings" Padding="9,5" />
             <Button x:Name="DesktopAccess" Content="Desbloquear" Click="ToggleAccess" Padding="9,5" ToolTip="Todos los modos · Ctrl + Shift + L con BAEL enfocado" />

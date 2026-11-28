@@ -72,6 +72,9 @@
                         <Label Content="Activar o desactivar el baile con audio" Target="{Binding ElementName=DanceShortcut}" Padding="0,0,0,5" />
                         <TextBox x:Name="DanceShortcut" IsReadOnly="True" PreviewKeyDown="CaptureShortcut" AutomationProperties.Name="Atajo para activar o desactivar el baile" />
                         <TextBlock Text="Alterna la detección de audio. Al sonar música o cualquier audio del dispositivo predeterminado, BAEL se disfraza de unicornio y baila en cualquier modo. Al parar, recupera su aspecto anterior." TextWrapping="Wrap" Margin="0,6,0,14" />
+                        <Label Content="Animación Six seven · unicornio con lentes" Target="{Binding ElementName=SixSevenShortcut}" Padding="0,0,0,5" />
+                        <TextBox x:Name="SixSevenShortcut" IsReadOnly="True" PreviewKeyDown="CaptureShortcut" AutomationProperties.Name="Atajo de animación six seven" />
+                        <TextBlock Text="Ctrl + Alt + 6 (fila superior) inicia o detiene la animación. En el campo aparece D6. Los números flotan sobre sus manos y funciona en cualquier modo, incluso sin música. Escape sobre BAEL también la detiene; hablar o cambiar de modo recupera su aspecto habitual." TextWrapping="Wrap" Margin="0,6,0,14" />
                         <Label Content="Agrandar el personaje" Target="{Binding ElementName=EnlargeShortcut}" Padding="0,0,0,5" />
                         <TextBox x:Name="EnlargeShortcut" IsReadOnly="True" PreviewKeyDown="CaptureShortcut" AutomationProperties.Name="Atajo para agrandar BAEL" />
                         <Label Content="Reducir el personaje" Target="{Binding ElementName=ShrinkShortcut}" Padding="0,12,0,5" />
